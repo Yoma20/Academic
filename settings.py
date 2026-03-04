@@ -299,7 +299,13 @@ DATABASES = {
     )
 }
 ```
-5. Add to your Start Command:
+
+Push to GitHub.
+
+---
+
+### Step 5: Update Start Command in Render
+
+Go to your web service → **Settings** → Start Command:
 ```
 python manage.py migrate && gunicorn academic_platform.wsgi --bind 0.0.0.0:$PORT
-
