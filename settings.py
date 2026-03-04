@@ -17,7 +17,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 # In production, replace '*' with your actual domain names (e.g., ['your-frontend-domain.com', 'api.your-backend-domain.com'])
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '.onrender.com']
 if not DEBUG:
     # Example for production:
     # ALLOWED_HOSTS = ['your-production-frontend.com', 'your-production-backend.com']
@@ -160,7 +160,8 @@ REST_FRAMEWORK = {
 # In production, replace "http://localhost:3000" with your actual deployed frontend URL(s).
 # For example: CORS_ALLOWED_ORIGINS = ["https://your-github-pages-url.github.io", "https://your-custom-frontend-domain.com"]
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", # Allow your React development server
+    "http://localhost:3000",
+    "https://topmark-black.vercel.app/",  # your Vercel frontend
 ]
 CORS_ALLOW_CREDENTIALS = True # Allow cookies to be sent with CORS requests (e.g., for session auth)
 # If you need to allow all origins during early development (NOT recommended for production):
@@ -289,4 +290,16 @@ class CustomUserSerializer(serializers.ModelSerializer):
             user_type=validated_data.get('user_type', 'student') # Default to student if not provided
         )
         return user
+import dj_database_url
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,
+    )
+}
+```
+5. Add to your Start Command:
+```
+python manage.py migrate && gunicorn academic_platform.wsgi --bind 0.0.0.0:$PORT
 
