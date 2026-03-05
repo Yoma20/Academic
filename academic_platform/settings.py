@@ -17,7 +17,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 # In production, replace '*' with your actual domain names (e.g., ['your-frontend-domain.com', 'api.your-backend-domain.com'])
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'academic-3-2tvq.onrender.com', os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')]
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'web-production-d2ca9.up.railway.app', os.environ.get('RAILWAY_STATIC_URL', '').replace('https://', '')]
 if not DEBUG:
     # Example for production:
     # ALLOWED_HOSTS = ['your-production-frontend.com', 'your-production-backend.com']
@@ -160,15 +160,7 @@ REST_FRAMEWORK = {
 # In production, replace "http://localhost:3000" with your actual deployed frontend URL(s).
 # For example: CORS_ALLOWED_ORIGINS = ["https://your-github-pages-url.github.io", "https://your-custom-frontend-domain.com"]
 CORS_ALLOWED_ORIGINS = [
-    "https://topmark-black.vercel.app",
-    "https://topmark-git-main-yoma20s-projects.vercel.app",
-    "https://yoma20.github.io",
     "http://localhost:3000", # Allow your React development server
-]
-
-# Allow all Vercel preview deployments automatically
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.vercel\.app$",
 ]
 CORS_ALLOW_CREDENTIALS = True # Allow cookies to be sent with CORS requests (e.g., for session auth)
 # If you need to allow all origins during early development (NOT recommended for production):
@@ -206,94 +198,21 @@ CORS_ALLOW_CREDENTIALS = True # Allow cookies to be sent with CORS requests (e.g
 # Custom User Model
 AUTH_USER_MODEL = 'users.CustomUser'
 
-# academic_platform/urls.py
-"""
-URL configuration for academic_platform project.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    [https://docs.djangoproject.com/en/5.0/topics/http/urls/](https://docs.djangoproject.com/en/5.0/topics/http/urls/)
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings # Import settings
-from django.conf.urls.static import static # Import static
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')),
-    path('api/assignments/', include('assignments.urls')),
-    path('api/expert-profiles/', include('expert_profiles.urls')), # Include expert_profiles URLs
+# CORS Headers configuration
+CORS_ALLOWED_ORIGINS = [
+    "https://topmark-black.vercel.app",
+    "https://topmark-git-main-yoma20s-projects.vercel.app",
+    "https://yoma20.github.io",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 
-# Serve media files during development
-# In production, these should be served from a dedicated service like AWS S3 or Google Cloud Storage.
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Allow all Vercel preview deployments automatically
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
 
-# users/models.py
-from django.contrib.auth.models import AbstractUser, Group, Permission
-from django.db import models
-
-class CustomUser(AbstractUser):
-    USER_TYPE_CHOICES = (
-        ('student', 'Student'),
-        ('expert', 'Expert'),
-    )
-    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
-
-    # Add related_name to avoid clashes with auth.User's groups and user_permissions
-    # These are necessary when using a custom user model and also using Django's default Group/Permission models.
-    groups = models.ManyToManyField(
-        Group,
-        verbose_name=('groups'),
-        blank=True,
-        help_text=(
-            'The groups this user belongs to. A user will get all permissions '
-            'granted to each of their groups.'
-        ),
-        related_name="customuser_set", # Custom related_name to prevent clashes
-        related_query_name="customuser",
-    )
-    user_permissions = models.ManyToManyField(
-        Permission,
-        verbose_name=('user permissions'),
-        blank=True,
-        help_text=('Specific permissions for this user.'),
-        related_name="customuser_set", # Custom related_name to prevent clashes
-        related_query_name="customuser",
-    )
-
-    def __str__(self):
-        return self.username
-
-
-# users/serializers.py
-from rest_framework import serializers
-from .models import CustomUser
-
-class CustomUserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = ['id', 'username', 'email', 'user_type', 'password']
-        # Ensure password is write-only and not returned in responses
-        extra_kwargs = {'password': {'write_only': True, 'min_length': 8}}
-
-    def create(self, validated_data):
-        # Use create_user to ensure password is properly hashed
-        user = CustomUser.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=validated_data['password'],
-            user_type=validated_data.get('user_type', 'student') # Default to student if not provided
-        )
-        return user
+CORS_ALLOW_CREDENTIALS = True
