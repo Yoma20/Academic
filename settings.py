@@ -17,7 +17,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 # In production, replace '*' with your actual domain names (e.g., ['your-frontend-domain.com', 'api.your-backend-domain.com'])
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '.onrender.com']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'academic-3-2tvq.onrender.com']
 if not DEBUG:
     # Example for production:
     # ALLOWED_HOSTS = ['your-production-frontend.com', 'your-production-backend.com']
@@ -309,3 +309,4 @@ Push to GitHub.
 Go to your web service → **Settings** → Start Command:
 ```
 python manage.py migrate && gunicorn academic_platform.wsgi --bind 0.0.0.0:$PORT
+
