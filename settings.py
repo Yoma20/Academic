@@ -42,16 +42,15 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware', # Essential for many security features
+    'corsheaders.middleware.CorsMiddleware',  # ← moved to first
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Add CORS middleware for cross-origin requests
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware', # Protects against Cross-Site Request Forgery
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware', # Protects against clickjacking
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
 ROOT_URLCONF = 'academic_platform.urls'
 
 TEMPLATES = [
@@ -161,7 +160,11 @@ REST_FRAMEWORK = {
 # For example: CORS_ALLOWED_ORIGINS = ["https://your-github-pages-url.github.io", "https://your-custom-frontend-domain.com"]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "https://topmark-black.vercel.app/",  # your Vercel frontend
+    "https://topmark-black.vercel.app",
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://topmark-.*\.vercel\.app$",  # allows all Vercel preview URLs
 ]
 CORS_ALLOW_CREDENTIALS = True # Allow cookies to be sent with CORS requests (e.g., for session auth)
 # If you need to allow all origins during early development (NOT recommended for production):
@@ -309,4 +312,5 @@ Push to GitHub.
 Go to your web service → **Settings** → Start Command:
 ```
 python manage.py migrate && gunicorn academic_platform.wsgi --bind 0.0.0.0:$PORT
+
 
