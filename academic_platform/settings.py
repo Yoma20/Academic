@@ -16,6 +16,15 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5
 # Set DEBUG to False in production for security and performance.
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
 # In production, replace '*' with your actual domain names (e.g., ['your-frontend-domain.com', 'api.your-backend-domain.com'])
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'web-production-d2ca9.up.railway.app', os.environ.get('RAILWAY_STATIC_URL', '').replace('https://', '')]
 if not DEBUG:
@@ -23,7 +32,20 @@ if not DEBUG:
     # ALLOWED_HOSTS = ['your-production-frontend.com', 'your-production-backend.com']
     pass
 
-
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [...],
+    'DEFAULT_PERMISSION_CLASSES': [...],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_THROTTLE_CLASSES': [          
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day',
+    }
+}
 # Application definition
 
 INSTALLED_APPS = [
@@ -226,4 +248,5 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
 
