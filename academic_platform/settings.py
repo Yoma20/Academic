@@ -14,7 +14,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Set DEBUG to False in production for security and performance.
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 # In production, replace '*' with your actual domain names (e.g., ['your-frontend-domain.com', 'api.your-backend-domain.com'])
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'web-production-d2ca9.up.railway.app', os.environ.get('RAILWAY_STATIC_URL', '').replace('https://', '')]
@@ -76,12 +76,27 @@ WSGI_APPLICATION = 'academic_platform.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",  # fallback for local dev
+        conn_max_age=600,
+        ssl_require=not DEBUG,
+    )
 }
+```
+
+Then in Railway, add a Postgres service and set the `DATABASE_URL` environment variable. Railway auto-provides this when you attach a Postgres plugin.
+
+---
+
+**2. Set DEBUG to False in production**
+
+In Railway's environment variables, add:
+```
+DJANGO_DEBUG=False
+DJANGO_SECRET_KEY=<generate a new random one>
 
 
 # Password validation
@@ -156,16 +171,6 @@ REST_FRAMEWORK = {
     # }
 }
 
-# CORS settings - IMPORTANT for frontend communication
-# In production, replace "http://localhost:3000" with your actual deployed frontend URL(s).
-# For example: CORS_ALLOWED_ORIGINS = ["https://your-github-pages-url.github.io", "https://your-custom-frontend-domain.com"]
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", # Allow your React development server
-]
-CORS_ALLOW_CREDENTIALS = True # Allow cookies to be sent with CORS requests (e.g., for session auth)
-# If you need to allow all origins during early development (NOT recommended for production):
-# CORS_ALLOW_ALL_ORIGINS = True
-
 
 # --- Production Security Settings ---
 # These settings should be uncommented and configured for production environments.
@@ -211,8 +216,14 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Allow all Vercel preview deployments automatically
+CORS_ALLOWED_ORIGINS = [
+    "https://topmark-black.vercel.app",
+    ...
+]
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
