@@ -3,14 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from .models import Assignment, AssignmentBid
 from .serializers import AssignmentSerializer, AssignmentBidSerializer
 
-class IsStudent(permissions.BasePermission):
-    """Custom permission to only allow students to create assignments."""
-    def has_permission(self, request, view):
-        # Allow read-only access for anyone, but write access only for students
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        # Check if the user is authenticated and then check for is_student attribute
-        return request.user and request.user.is_authenticated and hasattr(request.user, 'is_student') and request.user.is_student
+from .permissions import IsStudent, IsExpert, IsAssignmentOwner, IsBidExpert
 
 class AssignmentListCreateView(generics.ListCreateAPIView):
     queryset = Assignment.objects.all().order_by('-created_at')
@@ -18,13 +11,13 @@ class AssignmentListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsStudent]
 
     def perform_create(self, serializer):
-        # Associate the assignment with the logged-in student user
         serializer.save(student=self.request.user)
 
 class AssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsAssignmentOwner]
+    
 
     def get_object(self):
         obj = super().get_object()
@@ -68,3 +61,4 @@ class AssignmentBidDetailView(generics.RetrieveUpdateDestroyAPIView):
             return obj
         else:
             raise PermissionDenied("You do not have permission to access this bid.")
+
