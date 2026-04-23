@@ -3,3 +3,4 @@ django==5.2.4 ; python_version >= "3.13"
 djangorestframework==3.16.0 ; python_version >= "3.13"
 sqlparse==0.5.3 ; python_version >= "3.13"
 tzdata==2025.2 ; python_version >= "3.13" and sys_platform == "win32"
+stripe==12.1.0

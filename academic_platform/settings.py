@@ -59,9 +59,15 @@ INSTALLED_APPS = [
     'rest_framework.authtoken', # For token authentication
     'corsheaders', # For handling CORS
     'users', # Your custom users app
-    'assignments', # Your custom assignments app
-    'expert_profiles', # Your custom expert profiles app
+    'gigs', # Your custom gigs app
+    'expert_profiles.apps.ExpertProfilesConfig', # Your custom expert profiles app
+    "messaging",
+    "disputes" 
 ]
+
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware', # Essential for many security features
@@ -95,8 +101,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'academic_platform.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 import dj_database_url
 
@@ -121,9 +125,7 @@ DJANGO_DEBUG=False
 DJANGO_SECRET_KEY=<generate a new random one>
 
 
-# Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
-# Configure stronger password validation for production
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -143,8 +145,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
+
 
 LANGUAGE_CODE = 'en-us'
 
@@ -155,8 +156,7 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
+
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # For collecting static files in production
@@ -166,8 +166,6 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # In production, use cloud storage like AWS S3 or Google Cloud Storage
 
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -182,47 +180,10 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10, # Number of items per page for list views
-    # Add rate limiting for production to prevent abuse
-    # 'DEFAULT_THROTTLE_CLASSES': [
-    #     'rest_framework.throttling.AnonRateThrottle',
-    #     'rest_framework.throttling.UserRateThrottle'
-    # ],
-    # 'DEFAULT_THROTTLE_RATES': {
-    #     'anon': '100/day',
-    #     'user': '1000/day'
-    # }
+
 }
 
 
-# --- Production Security Settings ---
-# These settings should be uncommented and configured for production environments.
-# They are commented out by default to allow easier local development.
-
-# Force all communication over HTTPS
-# SECURE_SSL_REDIRECT = True
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') # If behind a proxy like Cloudflare or Nginx
-
-# HTTP Strict Transport Security (HSTS) - Prevents downgrade attacks
-# SECURE_HSTS_SECONDS = 31536000 # 1 year
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True # Apply for HSTS preload list (requires specific setup)
-
-# Cookie Security
-# CSRF_COOKIE_SECURE = True # Ensure CSRF cookie is only sent over HTTPS
-# SESSION_COOKIE_SECURE = True # Ensure session cookie is only sent over HTTPS
-# CSRF_COOKIE_HTTPONLY = True # Prevent client-side JavaScript access to CSRF cookie
-# SESSION_COOKIE_HTTPONLY = True # Prevent client-side JavaScript access to session cookie
-
-# Prevent content sniffing (e.g., browser interpreting a script as an image)
-# SECURE_CONTENT_TYPE_NOSNIFF = True
-
-# Protect against Cross-Site Scripting (XSS) in older browsers
-# SECURE_BROWSER_XSS_FILTER = True
-
-# X-Frame-Options - Prevents clickjacking
-# X_FRAME_OPTIONS = 'DENY' # Default is 'DENY' in Django 3.0+
-
-# Custom User Model
 AUTH_USER_MODEL = 'users.CustomUser'
 
 
@@ -237,7 +198,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
 ]
 
-# Allow all Vercel preview deployments automatically
+
 CORS_ALLOWED_ORIGINS = [
     "https://topmark-black.vercel.app",
     ...

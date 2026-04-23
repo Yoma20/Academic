@@ -16,8 +16,10 @@ urlpatterns = [
     path('', index, name='index'),
     path('admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
-    path('api/assignments/', include('assignments.urls')),
     path('api/expert-profiles/', include('expert_profiles.urls')),
+     path('api/gigs/', include('gigs.urls')),          
+    path('api/messaging/', include('messaging.urls')), 
+    path('api/disputes/', include('disputes.urls')),
 ]
 
 if settings.DEBUG:

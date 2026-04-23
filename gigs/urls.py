@@ -1,0 +1,38 @@
+from django.urls import path
+from .views import (
+    CategoryListView,
+    GigListView, GigDetailView, GigCreateView,
+    GigUpdateDeleteView, MyGigsView,
+    CreatePaymentIntentView, SubmitRequirementsView,
+    OrderListView, OrderDetailView, ApproveDeliveryView,
+    RefundOrderView, StripeWebhookView,
+    ExpertSubmitWorkView, CreateReviewView, ExpertReviewListView,
+)
+
+urlpatterns = [
+    # Categories
+    path('categories/', CategoryListView.as_view(), name='category-list'),
+
+    # Gigs
+    path('', GigListView.as_view(), name='gig-list'),
+    path('mine/', MyGigsView.as_view(), name='my-gigs'),
+    path('create/', GigCreateView.as_view(), name='gig-create'),
+    path('<int:pk>/', GigDetailView.as_view(), name='gig-detail'),
+    path('<int:pk>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
+
+    # Orders
+    path('orders/', OrderListView.as_view(), name='order-list'),
+    path('orders/create-payment-intent/', CreatePaymentIntentView.as_view(), name='create-payment-intent'),
+    path('orders/<int:order_id>/', OrderDetailView.as_view(), name='order-detail'),
+    path('orders/<int:order_id>/requirements/', SubmitRequirementsView.as_view(), name='submit-requirements'),
+    path('orders/<int:order_id>/submit/', ExpertSubmitWorkView.as_view(), name='expert-submit-work'),
+    path('orders/<int:order_id>/approve/', ApproveDeliveryView.as_view(), name='approve-delivery'),
+    path('orders/<int:order_id>/refund/', RefundOrderView.as_view(), name='refund-order'),
+    path('orders/<int:order_id>/review/', CreateReviewView.as_view(), name='create-review'),
+
+    # Expert reviews (public)
+    path('experts/<int:expert_id>/reviews/', ExpertReviewListView.as_view(), name='expert-reviews'),
+
+    # Stripe
+    path('webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
+]

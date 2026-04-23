@@ -5,10 +5,10 @@ from .serializers import ExpertProfileSerializer
 
 
 class ExpertProfileList(generics.ListAPIView):
-    queryset = ExpertProfile.objects.all()
+    # Highest-rated experts appear first.
+    queryset = ExpertProfile.objects.all().order_by('-rating')
     serializer_class = ExpertProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
-
 
 class ExpertProfileDetail(generics.RetrieveUpdateAPIView):
     serializer_class = ExpertProfileSerializer
