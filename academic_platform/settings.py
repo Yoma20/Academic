@@ -106,25 +106,11 @@ import dj_database_url
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",  # fallback for local dev
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
-        ssl_require=not DEBUG,
+        ssl_require=False,
     )
 }
-```
-
-Then in Railway, add a Postgres service and set the `DATABASE_URL` environment variable. Railway auto-provides this when you attach a Postgres plugin.
-
----
-
-**2. Set DEBUG to False in production**
-
-In Railway's environment variables, add:
-```
-DJANGO_DEBUG=False
-DJANGO_SECRET_KEY=<generate a new random one>
-
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -201,8 +187,19 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOWED_ORIGINS = [
     "https://topmark-black.vercel.app",
-    ...
+    "https://topmark-git-main-yoma20s-projects.vercel.app",
+    "https://yoma20.github.io",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
