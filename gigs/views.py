@@ -427,6 +427,15 @@ class CreateReviewView(APIView):
                 {"detail": "Order not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        existing_count = Gig.objects.filter(
+            expert=request.user.expert_profile
+        ).count()
+        if existing_count >= 3:
+            return Response(
+                {"detail": "You have reached the maximum of 3 gigs. Delete an existing gig to create a new one."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if order.status != 'completed':
             return Response(
