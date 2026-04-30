@@ -1,1 +1,1 @@
-web: gunicorn academic_platform.wsgi --log-file - 
+web: python manage.py collectstatic --noinput && python manage.py migrate && gunicorn academic_platform.wsgi --bind 0.0.0.0:$PORT --log-file -

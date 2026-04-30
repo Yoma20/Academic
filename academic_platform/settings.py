@@ -55,29 +55,32 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework', # Django REST Framework
-    'rest_framework.authtoken', # For token authentication
-    'corsheaders', # For handling CORS
-    'users', # Your custom users app
-    'gigs', # Your custom gigs app
-    'expert_profiles.apps.ExpertProfilesConfig', # Your custom expert profiles app
+    'rest_framework',
+    'rest_framework.authtoken', 
+    'corsheaders', 
+    'users',
+    'gigs', 
+    'expert_profiles.apps.ExpertProfilesConfig', 
     "messaging",
     "disputes" 
 ]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware', # Essential for many security features
+    'django.middleware.security.SecurityMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Add CORS middleware for cross-origin requests
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware', # Protects against Cross-Site Request Forgery
+    'django.middleware.csrf.CsrfViewMiddleware', 
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware', # Protects against clickjacking
+    'django.middleware.clickjacking.XFrameOptionsMiddleware', 
 ]
 
 ROOT_URLCONF = 'academic_platform.urls'
@@ -193,3 +196,6 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 CORS_ALLOW_CREDENTIALS = True
 
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://web-production-d2ca9.up.railway.app',
+]
