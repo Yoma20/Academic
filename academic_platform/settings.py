@@ -1,19 +1,14 @@
 from pathlib import Path
-import os # Import os module for path manipulation
+import os 
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-# In production, this should be an environment variable or a secret management service.
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5*@d(2!n*z9h-h&17z*#d+6i_0)e5#w^!_7')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-# Set DEBUG to False in production for security and performance.
+
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 if not DEBUG:
@@ -25,11 +20,16 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# In production, replace '*' with your actual domain names (e.g., ['your-frontend-domain.com', 'api.your-backend-domain.com'])
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'web-production-d2ca9.up.railway.app', os.environ.get('RAILWAY_STATIC_URL', '').replace('https://', '')]
+
+ALLOWED_HOSTS = [
+    '127.0.0.1', 'localhost',
+    'web-production-d2ca9.up.railway.app',
+    'www.topmark.pro',      # ← add
+    'topmark.pro',          # ← add
+    os.environ.get('RAILWAY_STATIC_URL', '').replace('https://', ''),
+]
 if not DEBUG:
-    # Example for production:
-    # ALLOWED_HOSTS = ['your-production-frontend.com', 'your-production-backend.com']
+   
     pass
 
 REST_FRAMEWORK = {
@@ -76,10 +76,11 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'corsheaders.middleware.CorsMiddleware', 
+     
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware', 
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -152,27 +153,27 @@ USE_TZ = True
 
 
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # For collecting static files in production
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 
-# Media files (for user uploads like profile pictures, assignment files)
+
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # In production, use cloud storage like AWS S3 or Google Cloud Storage
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media') 
 
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django REST Framework settings
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication', # Recommended for API authentication
-        'rest_framework.authentication.SessionAuthentication', # For browsable API and traditional web apps
+        'rest_framework.authentication.TokenAuthentication', 
+        'rest_framework.authentication.SessionAuthentication', 
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', # Default to requiring authentication for all API views
+        'rest_framework.permissions.IsAuthenticated', 
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10, # Number of items per page for list views
+    'PAGE_SIZE': 10,
 
 }
 
@@ -180,11 +181,13 @@ REST_FRAMEWORK = {
 AUTH_USER_MODEL = 'users.CustomUser'
 
 
-# CORS Headers configuration
+
 CORS_ALLOWED_ORIGINS = [
     "https://topmark-black.vercel.app",
     "https://topmark-git-main-yoma20s-projects.vercel.app",
     "https://yoma20.github.io",
+    "https://www.topmark.pro",   
+    "https://topmark.pro",       
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5174",
@@ -202,4 +205,6 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     'https://web-production-d2ca9.up.railway.app',
+    'https://www.topmark.pro',   
+    'https://topmark.pro',       
 ]
