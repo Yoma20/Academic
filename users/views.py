@@ -4,7 +4,6 @@ import re
 import requests as http_requests
 
 from django.contrib.auth import get_user_model, logout
-from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.response import Response
@@ -50,23 +49,35 @@ def _user_payload(user):
     }
 
 def _send_otp_email(user):
-    """Generate a fresh OTP, save it, and email it to the user."""
+    """Generate a fresh OTP, save it, and email it via Resend HTTP API."""
     otp = user.generate_and_save_otp()
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    if not api_key:
+        print("[OTP email error] RESEND_API_KEY is not set.")
+        return
     try:
-        send_mail(
-            subject="Your TopMark verification code",
-            message=(
-                f"Hi {user.username},\n\n"
-                f"Your 6-digit verification code is: {otp}\n\n"
-                f"It expires in 10 minutes.\n\n"
-                f"— The TopMark Team"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+        resp = http_requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.DEFAULT_FROM_EMAIL,
+                "to": [user.email],
+                "subject": "Your TopMark verification code",
+                "text": (
+                    f"Hi {user.username},\n\n"
+                    f"Your 6-digit verification code is: {otp}\n\n"
+                    f"It expires in 10 minutes.\n\n"
+                    f"— The TopMark Team"
+                ),
+            },
+            timeout=10,
         )
+        if resp.status_code not in (200, 201):
+            print(f"[OTP email error] Resend API returned {resp.status_code}: {resp.text}")
     except Exception as e:
-        # Log but don't crash — OTP is still stored in the DB
         print(f"[OTP email error] {e}")
 
 
