@@ -71,6 +71,14 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@topmark.pro')
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
+# ── Email via Resend SMTP relay ───────────────────────────────────────────────
+EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST          = 'smtp.resend.com'
+EMAIL_PORT          = 465
+EMAIL_USE_SSL       = True
+EMAIL_HOST_USER     = 'resend'
+EMAIL_HOST_PASSWORD = RESEND_API_KEY  # pulled from RESEND_API_KEY Railway env var
+
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
