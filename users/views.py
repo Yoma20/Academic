@@ -10,7 +10,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 
-from .serializers import CustomUserSerializer, UserLoginSerializer
+from .serializers import (
+    CustomUserSerializer,
+    UserLoginSerializer,
+    ProfileUpdateSerializer,
+    ChangePasswordSerializer,
+)
 
 CustomUser = get_user_model()
 
@@ -285,3 +290,64 @@ class GoogleAuthView(APIView):
             username = f"{base}_{counter}"
             counter += 1
         return username
+
+# ── Me — GET / PATCH profile ──────────────────────────────────────────────────
+
+class MeView(APIView):
+    """
+    GET  /api/users/me/  → return current user's profile data
+    PATCH /api/users/me/ → update username / email / first_name / last_name
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        data = {
+            "id":         user.pk,
+            "username":   user.username,
+            "email":      user.email,
+            "first_name": user.first_name,
+            "last_name":  user.last_name,
+            "user_type":  user.user_type,
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        serializer = ProfileUpdateSerializer(
+            request.user, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"detail": "Profile updated.", **serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
+
+# ── Change password ────────────────────────────────────────────────────────────
+
+class ChangePasswordView(APIView):
+    """
+    POST /api/users/change-password/
+    Body: { current_password, new_password }
+
+    On success the old token is deleted and a fresh one is returned so the
+    frontend can stay logged in without a round-trip to /login/.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChangePasswordSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        # Rotate the auth token so old copies (other devices/tabs) are invalidated
+        Token.objects.filter(user=user).delete()
+        new_token, _ = Token.objects.get_or_create(user=user)
+
+        return Response(
+            {"detail": "Password changed successfully.", "token": new_token.key},
+            status=status.HTTP_200_OK,
+        )
