@@ -3,6 +3,16 @@ from django.dispatch import receiver
 from django.db.models import Avg, Count
 
 
+@receiver(post_save, sender='users.CustomUser')
+def create_expert_profile(sender, instance, created, **kwargs):
+    """Automatically create an ExpertProfile whenever an expert account is saved.
+    Also runs on existing users when user_type is changed to 'expert'.
+    """
+    from expert_profiles.models import ExpertProfile
+    if instance.user_type == 'expert':
+        ExpertProfile.objects.get_or_create(user=instance)
+
+
 def _recalculate_expert_rating(expert):
     from gigs.models import Review  # ← was assignments.models
 

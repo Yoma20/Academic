@@ -103,3 +103,25 @@ class ExpertProfileAvatarUpload(APIView):
         profile.save(update_fields=['avatar_url'])
 
         return Response({"avatar_url": url}, status=status.HTTP_200_OK)
+
+class ExpertProfileEnsureView(APIView):
+    """
+    POST /api/expert-profiles/ensure/
+    Creates an ExpertProfile for the current user if one does not already exist.
+    Safe to call multiple times (idempotent). Fixes existing expert accounts
+    that were registered before the auto-create signal was in place.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        if request.user.user_type != 'expert':
+            return Response(
+                {"detail": "Only expert accounts can have an expert profile."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        profile, created = ExpertProfile.objects.get_or_create(user=request.user)
+        serializer = ExpertProfileSerializer(profile)
+        return Response(
+            {**serializer.data, "created": created},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
