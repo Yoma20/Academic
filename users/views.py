@@ -302,24 +302,32 @@ class MeView(APIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
+        pic = user.profile_picture
+        picture_url = request.build_absolute_uri(pic.url) if pic else None
         data = {
-            "id":         user.pk,
-            "username":   user.username,
-            "email":      user.email,
-            "first_name": user.first_name,
-            "last_name":  user.last_name,
-            "user_type":  user.user_type,
+            "id":              user.pk,
+            "username":        user.username,
+            "email":           user.email,
+            "first_name":      user.first_name,
+            "last_name":       user.last_name,
+            "user_type":       user.user_type,
+            "profile_picture": picture_url,
         }
         return Response(data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
+        # Must use request.FILES for multipart image uploads
         serializer = ProfileUpdateSerializer(
-            request.user, data=request.data, partial=True
+            request.user, data=request.data, partial=True,
+            context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        user = serializer.save()
+        pic = user.profile_picture
+        picture_url = request.build_absolute_uri(pic.url) if pic else None
         return Response(
-            {"detail": "Profile updated.", **serializer.data},
+            {"detail": "Profile updated.", **serializer.data,
+             "profile_picture": picture_url},
             status=status.HTTP_200_OK,
         )
 

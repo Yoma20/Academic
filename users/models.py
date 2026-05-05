@@ -19,6 +19,7 @@ class CustomUser(AbstractUser):
     email_otp = models.CharField(max_length=6, blank=True, null=True)
     email_otp_created_at = models.DateTimeField(blank=True, null=True)
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    profile_picture = models.ImageField(upload_to="profile_pictures/", blank=True, null=True)
 
     groups = models.ManyToManyField(
         Group,

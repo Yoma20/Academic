@@ -42,12 +42,14 @@ class UserLoginSerializer(serializers.Serializer):
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     """
-    Lets a user change their own username, email, first_name, last_name.
-    Password changes go through ChangePasswordSerializer instead.
+    Lets a user change their own username, email, first_name, last_name,
+    and profile_picture. Password changes go through ChangePasswordSerializer.
     """
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'first_name', 'last_name']
+        fields = ['username', 'email', 'first_name', 'last_name', 'profile_picture']
 
     def validate_username(self, value):
         user = self.instance
