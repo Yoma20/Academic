@@ -16,6 +16,16 @@ class AcademicCategorySerializer(serializers.ModelSerializer):
 
 
 class GigPackageSerializer(serializers.ModelSerializer):
+    # Allow empty strings from the frontend to be treated as 0/null
+    price = serializers.DecimalField(
+        max_digits=8, decimal_places=2, coerce_to_string=False
+    )
+    delivery_days = serializers.IntegerField()
+    revision_number = serializers.IntegerField(required=False, default=1)
+    features = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+
     class Meta:
         model = GigPackage
         fields = [
@@ -25,6 +35,12 @@ class GigPackageSerializer(serializers.ModelSerializer):
 
 
 class GigExtraSerializer(serializers.ModelSerializer):
+    price = serializers.DecimalField(
+        max_digits=8, decimal_places=2, coerce_to_string=False
+    )
+    extra_days = serializers.IntegerField(required=False, default=0)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+
     class Meta:
         model = GigExtra
         fields = ['id', 'name', 'description', 'price', 'extra_days']
