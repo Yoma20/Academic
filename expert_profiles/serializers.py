@@ -4,14 +4,19 @@ from .models import ExpertProfile
 
 class ExpertProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
-    email = serializers.EmailField(source='user.email', read_only=True)
+    email    = serializers.EmailField(source='user.email',    read_only=True)
 
     class Meta:
-        model = ExpertProfile
+        model  = ExpertProfile
         fields = [
-            'id', 'username', 'email', 'field_of_study', 'bio', 'available',
-            'rating', 'avg_rubric_adherence', 'avg_timeliness', 'avg_communication',
-            'total_reviews', 'recommendation_rate',
+            'id', 'username', 'email',
+            # Editable by the expert
+            'field_of_study', 'bio', 'title', 'available',
+            'skills', 'languages', 'country', 'avatar_url',
+            'work_experience', 'education', 'certifications',
+            # Read-only aggregates
+            'rating', 'avg_rubric_adherence', 'avg_timeliness',
+            'avg_communication', 'total_reviews', 'recommendation_rate',
             'stripe_account_verified',
         ]
         read_only_fields = [

@@ -1,25 +1,33 @@
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import ExpertProfile
 from .serializers import ExpertProfileSerializer
 
+# Fields the expert is allowed to update themselves
+EDITABLE_FIELDS = {
+    "available", "bio", "field_of_study", "title",
+    "skills", "languages", "country",
+    "work_experience", "education", "certifications",
+}
+
 
 class ExpertProfileList(generics.ListAPIView):
-    # Highest-rated experts appear first.
-    queryset = ExpertProfile.objects.all().order_by('-rating')
-    serializer_class = ExpertProfileSerializer
+    """GET /api/expert-profiles/ — list all experts, highest-rated first."""
+    queryset           = ExpertProfile.objects.all().order_by('-rating')
+    serializer_class   = ExpertProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
 class ExpertProfileDetail(generics.RetrieveUpdateAPIView):
-    serializer_class = ExpertProfileSerializer
+    """GET/PATCH /api/expert-profiles/<pk>/"""
+    serializer_class   = ExpertProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        # Only experts have a profile — return a clear error if the user is a student
         try:
             return self.request.user.expert_profile
         except ExpertProfile.DoesNotExist:
@@ -28,10 +36,12 @@ class ExpertProfileDetail(generics.RetrieveUpdateAPIView):
 
 class ExpertProfileMe(APIView):
     """
-    GET  /api/expert-profiles/me/  → current expert's own profile
-    PATCH /api/expert-profiles/me/ → update available / bio / field_of_study
+    GET   /api/expert-profiles/me/        → current expert's own profile
+    PATCH /api/expert-profiles/me/        → update editable fields (JSON)
+    POST  /api/expert-profiles/me/avatar/ → upload profile picture
     """
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes     = [MultiPartParser, FormParser, JSONParser]
 
     def _get_profile(self, user):
         try:
@@ -45,10 +55,51 @@ class ExpertProfileMe(APIView):
 
     def patch(self, request, *args, **kwargs):
         profile = self._get_profile(request.user)
-        # Only allow user-editable fields; everything else (ratings etc.) is read-only
-        allowed = {k: v for k, v in request.data.items()
-                   if k in ("available", "bio", "field_of_study")}
+
+        # Strip out any fields the expert is not allowed to change
+        allowed = {k: v for k, v in request.data.items() if k in EDITABLE_FIELDS}
+
         serializer = ExpertProfileSerializer(profile, data=allowed, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ExpertProfileAvatarUpload(APIView):
+    """
+    POST /api/expert-profiles/me/avatar/
+    Accepts multipart/form-data with key `avatar`.
+    Stores the file and saves the public URL to expert_profile.avatar_url.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes     = [MultiPartParser, FormParser]
+
+    def _get_profile(self, user):
+        try:
+            return user.expert_profile
+        except ExpertProfile.DoesNotExist:
+            raise PermissionDenied("Only experts have a profile.")
+
+    def post(self, request, *args, **kwargs):
+        profile = self._get_profile(request.user)
+        avatar  = request.FILES.get('avatar')
+
+        if not avatar:
+            return Response(
+                {"error": "No file provided. Send the image with key 'avatar'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        
+        from django.core.files.storage import default_storage
+        import os
+
+        ext      = os.path.splitext(avatar.name)[1].lower()
+        filename = f"avatars/expert_{profile.user_id}{ext}"
+        saved    = default_storage.save(filename, avatar)
+        url      = default_storage.url(saved)
+
+        profile.avatar_url = url
+        profile.save(update_fields=['avatar_url'])
+
+        return Response({"avatar_url": url}, status=status.HTTP_200_OK)
