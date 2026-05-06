@@ -4,22 +4,26 @@ from .views import (
     StartConversationView,
     MessageListView,
     SendMessageView,
+    SendOfferView,
+    RespondOfferView,
     UnreadCountView,
 )
 
 urlpatterns = [
-    # List all conversations for the current user
+    # Conversations
     path("conversations/", ConversationListView.as_view(), name="conversation-list"),
-
-    # Start a new conversation (or retrieve existing) with an optional first message
     path("conversations/start/", StartConversationView.as_view(), name="start-conversation"),
 
-    # Get all messages in a conversation (also marks them read)
+    # Messages
     path("conversations/<int:conv_id>/messages/", MessageListView.as_view(), name="message-list"),
-
-    # Send a message into an existing conversation
     path("conversations/<int:conv_id>/send/", SendMessageView.as_view(), name="send-message"),
 
-    # Unread message count (for notification badge)
+    # Offers — sent inside a conversation by the expert
+    path("conversations/<int:conv_id>/offer/", SendOfferView.as_view(), name="send-offer"),
+
+    # Offer response — buyer accepts or declines
+    path("offers/<int:offer_id>/respond/", RespondOfferView.as_view(), name="respond-offer"),
+
+    # Unread badge count
     path("unread-count/", UnreadCountView.as_view(), name="unread-count"),
 ]
