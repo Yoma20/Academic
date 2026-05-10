@@ -66,6 +66,7 @@ class GigDetailView(generics.RetrieveAPIView):
     """GET /api/gigs/<id>/"""
     serializer_class = GigSerializer
     permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'slug'
     queryset = Gig.objects.prefetch_related('packages', 'extras')
 
 

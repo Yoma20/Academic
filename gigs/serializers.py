@@ -16,7 +16,6 @@ class AcademicCategorySerializer(serializers.ModelSerializer):
 
 
 class GigPackageSerializer(serializers.ModelSerializer):
-    # Allow empty strings from the frontend to be treated as 0/null
     price = serializers.DecimalField(
         max_digits=8, decimal_places=2, coerce_to_string=False
     )
@@ -65,14 +64,18 @@ class GigSerializer(serializers.ModelSerializer):
     class Meta:
         model = Gig
         fields = [
-            'id', 'title', 'description', 'short_title', 'short_description',
+            'id', 'slug',                                          # ← slug added
+            'title', 'description', 'short_title', 'short_description',
             'category', 'category_name', 'cover_image', 'images',
             'requirements_prompt', 'sales', 'is_active',
             'expert_id', 'expert_username', 'expert_rating',
             'starting_price', 'packages', 'extras',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['expert', 'sales', 'expert_id', 'expert_username', 'expert_rating']
+        read_only_fields = [
+            'slug',                                                # ← slug is read-only
+            'expert', 'sales', 'expert_id', 'expert_username', 'expert_rating',
+        ]
 
 
 class GigWriteSerializer(serializers.ModelSerializer):
@@ -161,7 +164,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_requirements_submitted(self, obj):
         return hasattr(obj, 'requirements')
-    
+
+
 class ReviewSerializer(serializers.ModelSerializer):
     student_username = serializers.CharField(source='student.username', read_only=True)
     expert_username = serializers.CharField(source='expert.user.username', read_only=True)
