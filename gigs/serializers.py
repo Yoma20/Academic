@@ -60,22 +60,27 @@ class GigSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(
         source='category.name', read_only=True, allow_null=True
     )
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Gig
         fields = [
-            'id', 'slug',                                          # ← slug added
+            'id', 'slug',
             'title', 'description', 'short_title', 'short_description',
             'category', 'category_name', 'cover_image', 'images',
             'requirements_prompt', 'sales', 'is_active',
             'expert_id', 'expert_username', 'expert_rating',
+            'review_count',
             'starting_price', 'packages', 'extras',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'slug',                                                # ← slug is read-only
+            'slug',
             'expert', 'sales', 'expert_id', 'expert_username', 'expert_rating',
         ]
+
+    def get_review_count(self, obj):
+        return Review.objects.filter(expert=obj.expert).count()
 
 
 class GigWriteSerializer(serializers.ModelSerializer):
