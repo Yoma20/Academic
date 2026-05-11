@@ -96,6 +96,7 @@ class GigCreateView(APIView):
 class GigUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     """GET/PATCH/DELETE /api/gigs/<id>/manage/ — owner expert only"""
     permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'slug' 
 
     def get_serializer_class(self):
         if self.request.method in ('PUT', 'PATCH'):
@@ -110,12 +111,7 @@ class GigUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
             raise PermissionDenied("Only experts can manage gigs.")
         return super().get_object()
     
-    def patch(self, request, pk):
-        gig = get_object_or_404(Gig, pk=pk, expert=request.user.expert_profile)
-        serializer = GigWriteSerializer(gig, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(GigSerializer(gig).data)
+
 
 
 class MyGigsView(generics.ListAPIView):

@@ -17,8 +17,8 @@ urlpatterns = [
     path('', GigListView.as_view(), name='gig-list'),
     path('mine/', MyGigsView.as_view(), name='my-gigs'),
     path('create/', GigCreateView.as_view(), name='gig-create'),
-    path('<int:pk>/', GigDetailView.as_view(), name='gig-detail'),
-    path('<int:pk>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
+    path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
+    path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
 
     # Orders
     path('orders/', OrderListView.as_view(), name='order-list'),
