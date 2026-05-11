@@ -56,6 +56,7 @@ class GigSerializer(serializers.ModelSerializer):
         decimal_places=2, read_only=True
     )
     expert_id = serializers.IntegerField(source='expert.id', read_only=True)
+    expert_user_id = serializers.IntegerField(source='expert.user.id', read_only=True)
     starting_price = serializers.ReadOnlyField()
     category_name = serializers.CharField(
         source='category.name', read_only=True, allow_null=True
@@ -69,14 +70,14 @@ class GigSerializer(serializers.ModelSerializer):
             'title', 'description', 'short_title', 'short_description',
             'category', 'category_name', 'cover_image', 'images',
             'requirements_prompt', 'sales', 'is_active',
-            'expert_id', 'expert_username', 'expert_rating',
+            'expert_id', 'expert_user_id', 'expert_username', 'expert_rating',
             'review_count',
             'starting_price', 'packages', 'extras',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'slug',
-            'expert', 'sales', 'expert_id', 'expert_username', 'expert_rating',
+            'expert', 'sales', 'expert_id', 'expert_user_id', 'expert_username', 'expert_rating',
         ]
 
     def get_review_count(self, obj):
