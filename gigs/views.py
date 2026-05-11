@@ -109,6 +109,13 @@ class GigUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         if not hasattr(self.request.user, 'expert_profile'):
             raise PermissionDenied("Only experts can manage gigs.")
         return super().get_object()
+    
+    def patch(self, request, pk):
+        gig = get_object_or_404(Gig, pk=pk, expert=request.user.expert_profile)
+        serializer = GigWriteSerializer(gig, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(GigSerializer(gig).data)
 
 
 class MyGigsView(generics.ListAPIView):
