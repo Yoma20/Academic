@@ -309,18 +309,17 @@ class RespondOfferView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Create Order in pending_payment state
+        # Create Order matching the Order model in gigs/models.py
         try:
             from gigs.models import Order
             order = Order.objects.create(
-                buyer=request.user,
-                seller=expert,
+                student=request.user,
                 package=offer.package,
-                gig=conversation.gig,
-                price=offer.price,
-                delivery_days=offer.delivery_days,
-                status="pending_payment",
-                # Store offer reference
+                package_price=offer.price,
+                extras_price=0,
+                total_price=offer.price,
+                status="pending",
+                payment_status="unpaid",
             )
             offer.status = Offer.STATUS_ACCEPTED
             offer.order = order
@@ -345,8 +344,8 @@ class RespondOfferView(APIView):
                 application_fee_amount=int(amount_cents * 0.10),  # 10% platform fee
                 metadata={"order_id": order.id, "offer_id": offer.id},
             )
-            order.payment_intent_id = intent["id"]
-            order.save(update_fields=["payment_intent_id"])
+            order.stripe_payment_intent_id = intent["id"]
+            order.save(update_fields=["stripe_payment_intent_id"])
 
             client_secret = intent["client_secret"]
         except Exception as e:
