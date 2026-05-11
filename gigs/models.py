@@ -1,15 +1,11 @@
 from django.db import models
 from django.conf import settings
+from django.utils.text import slugify
 from expert_profiles.models import ExpertProfile
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class AcademicCategory(models.Model):
-    """
-    Two-level category tree.
-    Parent categories: e.g. "Engineering", "Biology"
-    Child categories: e.g. "CAD", "Circuit Design" (under Engineering)
-    """
     name = models.CharField(max_length=100)
     parent = models.ForeignKey(
         'self', null=True, blank=True,
@@ -34,6 +30,7 @@ class Gig(models.Model):
         related_name='gigs'
     )
     title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True, blank=True)
     description = models.TextField()
     short_title = models.CharField(max_length=100)
     short_description = models.CharField(max_length=255)
@@ -46,7 +43,6 @@ class Gig(models.Model):
     cover_image = models.URLField(blank=True)
     images = models.JSONField(default=list, blank=True)
 
-    # Requirements prompt — shown to student before order starts
     requirements_prompt = models.TextField(
         blank=True,
         help_text="Questions the student must answer before work begins "
@@ -57,6 +53,18 @@ class Gig(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.title)
+            slug = base_slug
+            counter = 1
+            # Ensure uniqueness
+            while Gig.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title
@@ -91,7 +99,6 @@ class GigPackage(models.Model):
 
 
 class GigExtra(models.Model):
-    """Add-ons a student can attach to any package."""
     gig = models.ForeignKey(Gig, on_delete=models.CASCADE, related_name='extras')
     name = models.CharField(max_length=100, help_text="e.g. '24-hour turnaround'")
     description = models.CharField(max_length=255)
@@ -106,13 +113,12 @@ class GigExtra(models.Model):
 
 
 class Order(models.Model):
-    """Created when a student pays for a package. Replaces Assignment."""
     STATUS_CHOICES = (
-        ('pending', 'Pending'),           # payment intent created, not yet confirmed
-        ('in_progress', 'In Progress'),   # payment confirmed, expert working
-        ('submitted', 'Submitted'),       # expert delivered
-        ('completed', 'Completed'),       # student approved
-        ('archived', 'Archived'),         # cancelled/refunded
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('submitted', 'Submitted'),
+        ('completed', 'Completed'),
+        ('archived', 'Archived'),
     )
     PAYMENT_STATUS_CHOICES = (
         ('unpaid', 'Unpaid'),
@@ -138,14 +144,12 @@ class Order(models.Model):
         max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid'
     )
 
-    # Snapshot prices at time of order (in case expert changes them later)
     package_price = models.DecimalField(max_digits=10, decimal_places=2)
     extras_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
 
     deadline = models.DateTimeField(null=True, blank=True)
 
-    # Stripe
     stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
     stripe_transfer_id = models.CharField(max_length=200, blank=True)
     platform_fee_percent = models.DecimalField(
@@ -160,10 +164,6 @@ class Order(models.Model):
 
 
 class OrderRequirements(models.Model):
-    """
-    Student fills this in before work begins.
-    Order stays 'pending' until this exists.
-    """
     order = models.OneToOneField(
         Order, on_delete=models.CASCADE, related_name='requirements'
     )
@@ -188,13 +188,9 @@ class OrderRequirements(models.Model):
 
     def __str__(self):
         return f"Requirements for Order #{self.order.id}"
-    
+
+
 class Review(models.Model):
-    """
-    Student leaves a multi-dimensional review after order completes.
-    Weighted rating is auto-calculated on save.
-    Signal in expert_profiles/signals.py recalculates ExpertProfile aggregates.
-    """
     order = models.OneToOneField(
         Order,
         on_delete=models.CASCADE,
