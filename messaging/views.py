@@ -37,6 +37,7 @@ class ConversationListView(generics.ListAPIView):
     """
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
@@ -104,6 +105,7 @@ class MessageListView(generics.ListAPIView):
     """
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated, IsConversationParticipant]
+    pagination_class = None
 
     def get_queryset(self):
         conv_id = self.kwargs["conv_id"]
