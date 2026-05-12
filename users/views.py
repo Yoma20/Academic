@@ -21,6 +21,12 @@ CustomUser = get_user_model()
 # ── Cloudflare Turnstile ───────────────────────────────────────────────────────
 TURNSTILE_SECRET = os.environ.get("CF_TURNSTILE_SECRET_KEY", "")
 
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.http import JsonResponse
+
+@ensure_csrf_cookie
+def csrf_token_view(request):
+    return JsonResponse({"detail": "CSRF cookie set"}) 
 
 def verify_turnstile(token: str, remote_ip: str = "") -> bool:
     if not TURNSTILE_SECRET or TURNSTILE_SECRET.startswith("1x0000"):

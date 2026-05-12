@@ -15,6 +15,17 @@ from .views import (
 router = SimpleRouter()
 router.register(r'manage', CustomUserViewSet, basename='user')
 
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+@require_GET
+@ensure_csrf_cookie  
+def get_csrf(request):
+    return JsonResponse({"detail": "CSRF cookie set"})
+
+path('csrf/', get_csrf, name='csrf'),
+
 urlpatterns = [
     path('register/',         RegisterView.as_view(),       name='register'),
     path('login/',            LoginView.as_view(),           name='login'),
