@@ -3,12 +3,11 @@ import os
 import re
 import requests as http_requests
 
-from django.contrib.auth import get_user_model, logout
+from django.contrib.auth import get_user_model, login as auth_login, logout as auth_logout
 from django.conf import settings
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authtoken.models import Token
 
 from .serializers import (
     CustomUserSerializer,
@@ -22,8 +21,8 @@ CustomUser = get_user_model()
 # ── Cloudflare Turnstile ───────────────────────────────────────────────────────
 TURNSTILE_SECRET = os.environ.get("CF_TURNSTILE_SECRET_KEY", "")
 
+
 def verify_turnstile(token: str, remote_ip: str = "") -> bool:
-    # Any test/dev key (starts with 1x0000) always passes
     if not TURNSTILE_SECRET or TURNSTILE_SECRET.startswith("1x0000"):
         return True
     if not token:
@@ -42,16 +41,17 @@ def verify_turnstile(token: str, remote_ip: str = "") -> bool:
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 def _user_payload(user):
-    """Single consistent response shape used by every auth endpoint."""
-    token, _ = Token.objects.get_or_create(user=user)
+    """Consistent user shape returned to the frontend on every auth action.
+    No token — the session cookie handles auth from here on.
+    """
     return {
-        "token":     token.key,
         "user_id":   user.pk,
         "username":  user.username,
         "email":     user.email,
-        "user_type": user.user_type,             # 'student' | 'expert'
-        "isSeller":  user.user_type == "expert", # convenience bool for frontend
+        "user_type": user.user_type,
+        "isSeller":  user.user_type == "expert",
     }
+
 
 def _send_otp_email(user):
     """Generate a fresh OTP, save it, and email it via Resend HTTP API."""
@@ -110,7 +110,6 @@ class RegisterView(generics.CreateAPIView):
         )
 
     def create(self, request, *args, **kwargs):
-        # Turnstile
         cf_token  = request.data.get("cf_token", "")
         remote_ip = request.META.get("HTTP_CF_CONNECTING_IP") or request.META.get("REMOTE_ADDR", "")
         if not verify_turnstile(cf_token, remote_ip):
@@ -120,8 +119,6 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-
-        # Send OTP so the user can verify their email
         _send_otp_email(user)
 
         return Response(
@@ -136,7 +133,7 @@ class VerifyEmailView(APIView):
     """
     POST /api/users/verify-email/
     Body: { user_id, otp }
-    Returns the full auth payload on success so the frontend can log the user in immediately.
+    On success, logs the user in (creates a session) and returns the user payload.
     """
     permission_classes = [permissions.AllowAny]
 
@@ -149,8 +146,9 @@ class VerifyEmailView(APIView):
         except CustomUser.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Already verified — just hand back a token
         if user.is_email_verified:
+            # Already verified — just log in and return
+            auth_login(request, user)
             return Response(_user_payload(user), status=status.HTTP_200_OK)
 
         if not user.is_otp_valid(otp):
@@ -163,15 +161,12 @@ class VerifyEmailView(APIView):
         user.email_otp = None
         user.save(update_fields=["is_email_verified", "email_otp"])
 
+        auth_login(request, user)
         return Response(_user_payload(user), status=status.HTTP_200_OK)
 
 
 # ── Resend OTP ─────────────────────────────────────────────────────────────────
 class ResendOtpView(APIView):
-    """
-    POST /api/users/resend-otp/
-    Body: { user_id }
-    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -193,7 +188,6 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
-        # Turnstile
         cf_token  = request.data.get("cf_token", "")
         remote_ip = request.META.get("HTTP_CF_CONNECTING_IP") or request.META.get("REMOTE_ADDR", "")
         if not verify_turnstile(cf_token, remote_ip):
@@ -204,7 +198,6 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
 
-        # Block unverified accounts — resend OTP automatically
         if not user.is_email_verified:
             _send_otp_email(user)
             return Response(
@@ -212,6 +205,8 @@ class LoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Create Django session — browser receives a sessionid cookie
+        auth_login(request, user)
         return Response(_user_payload(user), status=status.HTTP_200_OK)
 
 
@@ -220,22 +215,12 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        try:
-            request.user.auth_token.delete()
-            logout(request)
-            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
-        except AttributeError:
-            return Response({"detail": "User is not logged in."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_logout(request)
+        return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
 
 
 # ── Google OAuth ───────────────────────────────────────────────────────────────
 class GoogleAuthView(APIView):
-    """
-    POST /api/users/google-auth/
-    Body: { credential }  — Google One Tap JWT
-    Creates the user on first login; returns the same payload as LoginView.
-    Prerequisites: pip install google-auth  |  GOOGLE_CLIENT_ID env var set.
-    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -279,6 +264,7 @@ class GoogleAuthView(APIView):
             user.is_email_verified = True
             user.save(update_fields=["is_email_verified"])
 
+        auth_login(request, user)
         return Response(_user_payload(user), status=status.HTTP_200_OK)
 
     @staticmethod
@@ -291,20 +277,16 @@ class GoogleAuthView(APIView):
             counter += 1
         return username
 
-# ── Me — GET / PATCH profile ──────────────────────────────────────────────────
 
+# ── Me — GET / PATCH profile ──────────────────────────────────────────────────
 class MeView(APIView):
-    """
-    GET  /api/users/me/  → return current user's profile data
-    PATCH /api/users/me/ → update username / email / first_name / last_name
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        pic = user.profile_picture
+        pic  = user.profile_picture
         picture_url = request.build_absolute_uri(pic.url) if pic else None
-        data = {
+        return Response({
             "id":              user.pk,
             "username":        user.username,
             "email":           user.email,
@@ -312,18 +294,16 @@ class MeView(APIView):
             "last_name":       user.last_name,
             "user_type":       user.user_type,
             "profile_picture": picture_url,
-        }
-        return Response(data, status=status.HTTP_200_OK)
+        }, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        # Must use request.FILES for multipart image uploads
         serializer = ProfileUpdateSerializer(
             request.user, data=request.data, partial=True,
             context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        pic = user.profile_picture
+        pic  = user.profile_picture
         picture_url = request.build_absolute_uri(pic.url) if pic else None
         return Response(
             {"detail": "Profile updated.", **serializer.data,
@@ -333,15 +313,7 @@ class MeView(APIView):
 
 
 # ── Change password ────────────────────────────────────────────────────────────
-
 class ChangePasswordView(APIView):
-    """
-    POST /api/users/change-password/
-    Body: { current_password, new_password }
-
-    On success the old token is deleted and a fresh one is returned so the
-    frontend can stay logged in without a round-trip to /login/.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
@@ -351,11 +323,10 @@ class ChangePasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Rotate the auth token so old copies (other devices/tabs) are invalidated
-        Token.objects.filter(user=user).delete()
-        new_token, _ = Token.objects.get_or_create(user=user)
+        # Re-login so the session stays valid after password change
+        auth_login(request, user)
 
         return Response(
-            {"detail": "Password changed successfully.", "token": new_token.key},
+            {"detail": "Password changed successfully."},
             status=status.HTTP_200_OK,
         )

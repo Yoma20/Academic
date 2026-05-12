@@ -13,14 +13,11 @@ urlpatterns = [
     # Categories
     path('categories/', CategoryListView.as_view(), name='category-list'),
 
-    # Gigs
-    path('', GigListView.as_view(), name='gig-list'),
+    # Fixed paths FIRST — before any slug patterns
     path('mine/', MyGigsView.as_view(), name='my-gigs'),
     path('create/', GigCreateView.as_view(), name='gig-create'),
-    path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
-    path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
 
-    # Orders
+    # Orders — all fixed paths, must be before <slug>
     path('orders/', OrderListView.as_view(), name='order-list'),
     path('orders/create-payment-intent/', CreatePaymentIntentView.as_view(), name='create-payment-intent'),
     path('orders/<int:order_id>/', OrderDetailView.as_view(), name='order-detail'),
@@ -30,9 +27,13 @@ urlpatterns = [
     path('orders/<int:order_id>/refund/', RefundOrderView.as_view(), name='refund-order'),
     path('orders/<int:order_id>/review/', CreateReviewView.as_view(), name='create-review'),
 
-    # Expert reviews (public)
+    # Expert reviews
     path('experts/<int:expert_id>/reviews/', ExpertReviewListView.as_view(), name='expert-reviews'),
 
-    # Stripe
+    # Stripe webhook
     path('webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
+
+    # Slug patterns LAST — these are catch-all and must come after everything fixed
+    path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
+    path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
 ]

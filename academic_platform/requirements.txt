@@ -1,12 +1,48 @@
-asgiref==3.9.1 ; python_version >= "3.13"
-django==5.2.4 ; python_version >= "3.13"
-djangorestframework==3.16.0 ; python_version >= "3.13"
-sqlparse==0.5.3 ; python_version >= "3.13"
-tzdata==2025.2 ; python_version >= "3.13" and sys_platform == "win32"
-stripe==12.1.0
-whitenoise==6.7.0
-google-auth==2.29.0
-resend==2.0.0
-Pillow==11.1.0
+asgiref==3.9.1
+attrs==26.1.0
+autobahn==25.12.2
+Automat==25.4.16
+beautifulsoup4==4.13.4
+bs4==0.0.2
+cbor2==6.0.1
+certifi==2025.7.14
+cffi==2.0.0
+channels==4.3.2
+channels_redis==4.3.0
+charset-normalizer==3.4.2
+constantly==23.10.4
+cryptography==47.0.0
+daphne==4.2.1
 dj-database-url==3.0.1
+Django==5.2.4
+django-cors-headers==4.7.0
+djangorestframework==3.16.0
+google-auth==2.50.0
+gunicorn==23.0.0
+hyperlink==21.0.0
+idna==3.10
+Incremental==24.11.0
+msgpack==1.1.2
+packaging==25.0
+pillow==12.2.0
 psycopg2-binary==2.9.10
+py-ubjson==0.16.1
+pyasn1==0.6.3
+pyasn1_modules==0.4.2
+pycparser==3.0
+pyOpenSSL==26.2.0
+redis==7.4.0
+requests==2.32.4
+resend==2.29.0
+service-identity==24.2.0
+soupsieve==2.7
+sqlparse==0.5.3
+stripe==15.0.1
+Twisted==26.4.0
+txaio==25.12.2
+typing_extensions==4.14.1
+tzdata==2025.2
+ujson==5.12.1
+urllib3==2.5.0
+whitenoise==6.9.0
+zope.interface==8.4
