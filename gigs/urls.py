@@ -14,6 +14,7 @@ urlpatterns = [
     path('categories/', CategoryListView.as_view(), name='category-list'),
 
     # Fixed paths FIRST — before any slug patterns
+    path('', GigListView.as_view(), name='gig-list'),          # ← was missing
     path('mine/', MyGigsView.as_view(), name='my-gigs'),
     path('create/', GigCreateView.as_view(), name='gig-create'),
 
