@@ -31,7 +31,10 @@ class ParticipantSerializer(serializers.ModelSerializer):
 
 
 class OfferSerializer(serializers.ModelSerializer):
-    sender = ParticipantSerializer(read_only=True)
+    sender = serializers.SerializerMethodField()
+
+    def get_sender(self, obj):
+        return ParticipantSerializer(obj.sender, context=self.context).data
 
     class Meta:
         model = Offer
@@ -55,8 +58,16 @@ class OfferSerializer(serializers.ModelSerializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    sender = ParticipantSerializer(read_only=True)
-    offer = OfferSerializer(read_only=True)
+    sender = serializers.SerializerMethodField()
+    offer = serializers.SerializerMethodField()
+
+    def get_sender(self, obj):
+        return ParticipantSerializer(obj.sender, context=self.context).data
+
+    def get_offer(self, obj):
+        if obj.offer:
+            return OfferSerializer(obj.offer, context=self.context).data
+        return None
 
     class Meta:
         model = Message
@@ -70,7 +81,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "is_read",
             "created_at",
         ]
-        read_only_fields = ["id", "sender", "is_read", "created_at", "message_type", "offer"]
+        read_only_fields = ["id", "is_read", "created_at", "message_type"]
 
 
 class ConversationSerializer(serializers.ModelSerializer):
