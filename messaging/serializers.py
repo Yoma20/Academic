@@ -6,9 +6,28 @@ User = get_user_model()
 
 
 class ParticipantSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "user_type"]
+        fields = ["id", "username", "first_name", "last_name", "user_type", "profile_picture"]
+
+    def get_profile_picture(self, user):
+        # Experts: use ExpertProfile.avatar_url
+        if user.user_type == "expert":
+            try:
+                url = user.expert_profile.avatar_url
+                if url:
+                    return url
+            except Exception:
+                pass
+        # Students (or expert fallback): use CustomUser.profile_picture
+        if user.profile_picture:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(user.profile_picture.url)
+            return user.profile_picture.url
+        return None
 
 
 class OfferSerializer(serializers.ModelSerializer):
@@ -77,7 +96,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_other_participant(self, obj):
         request = self.context.get("request")
         other = obj.get_other_participant(request.user)
-        return ParticipantSerializer(other).data
+        return ParticipantSerializer(other, context=self.context).data
 
     def get_last_message(self, obj):
         msg = obj.messages.last()

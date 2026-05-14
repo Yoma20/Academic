@@ -45,7 +45,7 @@ class ConversationListView(generics.ListAPIView):
             Conversation.objects.filter(
                 db_models.Q(participant_1=user) | db_models.Q(participant_2=user)
             )
-            .select_related("participant_1", "participant_2", "gig")
+            .select_related("participant_1", "participant_2", "participant_1__expert_profile", "participant_2__expert_profile", "gig")
             .prefetch_related("messages", "offers")
             .order_by("-updated_at")
         )
@@ -124,7 +124,8 @@ class MessageListView(generics.ListAPIView):
 
         return (
             Message.objects.filter(conversation=conversation)
-            .select_related("sender", "offer", "offer__sender")
+            .select_related("sender", "sender__expert_profile", "offer", "offer__sender")
+
         )
 
 

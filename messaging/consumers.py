@@ -46,20 +46,28 @@ def create_message(conversation, sender, content):
 
 @database_sync_to_async
 def serialize_message(message, request=None):
-    """Serialize a Message instance to a plain dict (no request context needed)."""
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
-
     sender = message.sender
+    
+    # Resolve avatar — same dual-system logic
+    profile_picture = None
+    if sender.user_type == "expert":
+        try:
+            profile_picture = sender.expert_profile.avatar_url or None
+        except Exception:
+            pass
+    if not profile_picture and sender.profile_picture:
+        profile_picture = sender.profile_picture.url  # relative URL is fine for WS
+
     return {
         "id":           message.id,
         "conversation": message.conversation_id,
         "sender": {
-            "id":         sender.id,
-            "username":   sender.username,
-            "first_name": sender.first_name,
-            "last_name":  sender.last_name,
-            "user_type":  sender.user_type,
+            "id":              sender.id,
+            "username":        sender.username,
+            "first_name":      sender.first_name,
+            "last_name":       sender.last_name,
+            "user_type":       sender.user_type,
+            "profile_picture": profile_picture,   # ← added
         },
         "content":      message.content,
         "message_type": message.message_type,
@@ -67,7 +75,6 @@ def serialize_message(message, request=None):
         "is_read":      message.is_read,
         "created_at":   message.created_at.isoformat(),
     }
-
 
 @database_sync_to_async
 def get_unread_count(user):
