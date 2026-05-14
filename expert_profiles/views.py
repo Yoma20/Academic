@@ -97,7 +97,7 @@ class ExpertProfileAvatarUpload(APIView):
         ext      = os.path.splitext(avatar.name)[1].lower()
         filename = f"avatars/expert_{profile.user_id}{ext}"
         saved    = default_storage.save(filename, avatar)
-        url      = default_storage.url(saved)
+        url      = url = request.build_absolute_uri(default_storage.url(saved))
 
         profile.avatar_url = url
         profile.save(update_fields=['avatar_url'])
