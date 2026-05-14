@@ -290,8 +290,6 @@ class MeView(APIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        pic  = user.profile_picture
-        picture_url = request.build_absolute_uri(pic.url) if pic else None
         return Response({
             "id":              user.pk,
             "username":        user.username,
@@ -299,7 +297,7 @@ class MeView(APIView):
             "first_name":      user.first_name,
             "last_name":       user.last_name,
             "user_type":       user.user_type,
-            "profile_picture": picture_url,
+            "profile_picture": user.profile_picture or None,
         }, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
@@ -309,11 +307,18 @@ class MeView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        pic  = user.profile_picture
-        picture_url = request.build_absolute_uri(pic.url) if pic else None
+
+        
+        if user.user_type == "expert" and user.profile_picture:
+            try:
+                user.expert_profile.avatar_url = user.profile_picture
+                user.expert_profile.save(update_fields=["avatar_url"])
+            except Exception:
+                pass
+
         return Response(
             {"detail": "Profile updated.", **serializer.data,
-             "profile_picture": picture_url},
+            "profile_picture": user.profile_picture},
             status=status.HTTP_200_OK,
         )
 

@@ -45,7 +45,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     Lets a user change their own username, email, first_name, last_name,
     and profile_picture. Password changes go through ChangePasswordSerializer.
     """
-    profile_picture = serializers.ImageField(required=False, allow_null=True)
+    profile_picture = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = CustomUser
