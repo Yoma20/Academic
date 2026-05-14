@@ -66,13 +66,8 @@ class ExpertProfileMe(APIView):
 
 
 class ExpertProfileAvatarUpload(APIView):
-    """
-    POST /api/expert-profiles/me/avatar/
-    Accepts multipart/form-data with key `avatar`.
-    Stores the file and saves the public URL to expert_profile.avatar_url.
-    """
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes     = [MultiPartParser, FormParser]
+    parser_classes     = [JSONParser]
 
     def _get_profile(self, user):
         try:
@@ -82,25 +77,20 @@ class ExpertProfileAvatarUpload(APIView):
 
     def post(self, request, *args, **kwargs):
         profile = self._get_profile(request.user)
-        avatar  = request.FILES.get('avatar')
+        url = request.data.get("avatar_url")
 
-        if not avatar:
+        if not url:
             return Response(
-                {"error": "No file provided. Send the image with key 'avatar'."},
+                {"error": "No URL provided. Send the image URL with key 'avatar_url'."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        
-        from django.core.files.storage import default_storage
-        import os
-
-        ext      = os.path.splitext(avatar.name)[1].lower()
-        filename = f"avatars/expert_{profile.user_id}{ext}"
-        saved    = default_storage.save(filename, avatar)
-        url      = url = request.build_absolute_uri(default_storage.url(saved))
-
         profile.avatar_url = url
-        profile.save(update_fields=['avatar_url'])
+        profile.save(update_fields=["avatar_url"])
+
+        # Sync to CustomUser.profile_picture so everything reads from one place
+        request.user.profile_picture = url
+        request.user.save(update_fields=["profile_picture"])
 
         return Response({"avatar_url": url}, status=status.HTTP_200_OK)
 
