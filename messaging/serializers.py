@@ -12,18 +12,17 @@ class ParticipantSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "username", "first_name", "last_name", "user_type", "profile_picture"]
 
-def get_profile_picture(self, user):
-    if user.user_type == "expert":
-        try:
-            url = user.expert_profile.avatar_url
-            if url:
-                return url
-        except Exception:
-            pass
-    if user.profile_picture:
-        return user.profile_picture  # already a full URL string
-    return None
-
+    def get_profile_picture(self, user):
+        if user.user_type == "expert":
+            try:
+                url = user.expert_profile.avatar_url
+                if url:
+                    return url
+            except Exception:
+                pass
+        if user.profile_picture:
+            return user.profile_picture
+        return None
 
 class OfferSerializer(serializers.ModelSerializer):
     sender = serializers.SerializerMethodField()
