@@ -17,7 +17,7 @@ class ExpertProfileSerializer(serializers.ModelSerializer):
             # Read-only aggregates
             'rating', 'avg_rubric_adherence', 'avg_timeliness',
             'avg_communication', 'total_reviews', 'recommendation_rate',
-            'stripe_account_verified',
+            
         ]
         read_only_fields = [
             'rating', 'avg_rubric_adherence', 'avg_timeliness',

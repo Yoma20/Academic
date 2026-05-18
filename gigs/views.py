@@ -66,18 +66,46 @@ class GigListView(APIView):
         return Response(serializer.data)
 
 
-class GigDetailView(APIView):
+class GigListView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request, slug):
-        try:
-            gig = Gig.objects.select_related(
-                'expert', 'expert__user', 'category'
-            ).prefetch_related('packages', 'extras').get(slug=slug)
-        except Gig.DoesNotExist:
-            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(GigSerializer(gig).data)
+    def get(self, request):
+        gigs = Gig.objects.filter(is_active=True).select_related(
+            'expert', 'expert__user', 'category'
+        ).prefetch_related('packages', 'extras')
 
+        # Search
+        search = request.query_params.get('search', '').strip()
+        if search:
+            gigs = gigs.filter(
+                Q(title__icontains=search) |
+                Q(description__icontains=search) |
+                Q(category__name__icontains=search) |
+                Q(expert__user__username__icontains=search)
+            )
+
+        # Category filter by ID
+        category = request.query_params.get('category', '').strip()
+        if category:
+            gigs = gigs.filter(category__id=category)
+
+        # Budget filter
+        min_price = request.query_params.get('min', '').strip()
+        max_price = request.query_params.get('max', '').strip()
+        if min_price:
+            gigs = gigs.filter(packages__price__gte=min_price).distinct()
+        if max_price:
+            gigs = gigs.filter(packages__price__lte=max_price).distinct()
+
+        # Sort
+        sort = request.query_params.get('sort', 'sales')
+        if sort == 'created_at':
+            gigs = gigs.order_by('-created_at')
+        else:
+            gigs = gigs.order_by('-sales')
+
+        serializer = GigSerializer(gigs, many=True)
+        return Response(serializer.data)
 
 class GigCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -454,15 +482,10 @@ class AdminEarningsView(APIView):
 # ─── Seller Earnings View ─────────────────────────────────────────────────────
 
 class SellerEarningsView(APIView):
-    """
-    GET /api/gigs/my-earnings/?period=week|month|all
-    Authenticated expert only. Returns their own earnings breakdown.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         user = request.user
-
         if user.user_type != 'expert':
             return Response(
                 {'detail': 'Only experts have earnings.'},
@@ -476,12 +499,14 @@ class SellerEarningsView(APIView):
             from_date = today - timedelta(days=today.weekday())
         elif period == 'month':
             from_date = today.replace(day=1)
-        else:  # all
+        else:
             from_date = None
 
+        # Completed + payment released = earned
         qs = Order.objects.filter(
             package__gig__expert__user=user,
             status='completed',
+            payment_status='released',
         ).select_related('package__gig', 'student')
 
         if from_date:
@@ -507,10 +532,11 @@ class SellerEarningsView(APIView):
         fee   = gross * 0.10
         net   = gross - fee
 
+        # "Awaiting payment" = completed but payment still held (not yet released)
         pending_qs = Order.objects.filter(
             package__gig__expert__user=user,
             status='completed',
-            payment_status__in=['pending', 'unpaid'],
+            payment_status='held',
         )
         if from_date:
             pending_qs = pending_qs.filter(updated_at__date__gte=from_date)
