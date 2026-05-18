@@ -7,6 +7,7 @@ from .views import (
     OrderListView, OrderDetailView, ApproveDeliveryView,
     RefundOrderView, StripeWebhookView,
     ExpertSubmitWorkView, CreateReviewView, ExpertReviewListView,
+    AdminEarningsView, SellerEarningsView,
 )
 
 urlpatterns = [
@@ -14,9 +15,13 @@ urlpatterns = [
     path('categories/', CategoryListView.as_view(), name='category-list'),
 
     # Fixed paths FIRST — before any slug patterns
-    path('', GigListView.as_view(), name='gig-list'),          # ← was missing
+    path('', GigListView.as_view(), name='gig-list'),
     path('mine/', MyGigsView.as_view(), name='my-gigs'),
     path('create/', GigCreateView.as_view(), name='gig-create'),
+
+    # Earnings
+    path('earnings/',    AdminEarningsView.as_view(),  name='admin-earnings'),
+    path('my-earnings/', SellerEarningsView.as_view(), name='seller-earnings'),
 
     # Orders — all fixed paths, must be before <slug>
     path('orders/', OrderListView.as_view(), name='order-list'),
@@ -34,7 +39,7 @@ urlpatterns = [
     # Stripe webhook
     path('webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
 
-    # Slug patterns LAST — these are catch-all and must come after everything fixed
+    # Slug patterns LAST — catch-all, must come after everything fixed
     path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
     path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
 ]

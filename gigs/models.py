@@ -150,11 +150,7 @@ class Order(models.Model):
 
     deadline = models.DateTimeField(null=True, blank=True)
 
-    stripe_payment_intent_id = models.CharField(max_length=200, blank=True)
-    stripe_transfer_id = models.CharField(max_length=200, blank=True)
-    platform_fee_percent = models.DecimalField(
-        max_digits=5, decimal_places=2, default=10.00
-    )
+
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -19,6 +19,11 @@ class CustomUserSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             user_type=validated_data.get('user_type', 'student')
         )
+    
+    def validate_user_type(self, value):
+        if value == 'admin':
+            raise serializers.ValidationError("Invalid user type.")
+        return value
 
 
 class UserLoginSerializer(serializers.Serializer):

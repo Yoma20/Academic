@@ -41,9 +41,7 @@ class ExpertProfile(models.Model):
         help_text="Percentage of reviewers who would recommend this expert."
     )
 
-    # Stripe Connect — for payouts
-    stripe_account_id       = models.CharField(max_length=200, blank=True)
-    stripe_account_verified = models.BooleanField(default=False)
+
 
     def __str__(self):
         return f"Expert Profile: {self.user.username}"

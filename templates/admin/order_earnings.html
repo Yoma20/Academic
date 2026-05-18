@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Expert Earnings</h1>
+
+<form method="get" style="margin-bottom:20px;">
+  <label>From: <input type="date" name="from" value="{{ from_date }}"></label>
+  &nbsp;
+  <label>To: <input type="date" name="to" value="{{ to_date }}"></label>
+  &nbsp;
+  <button type="submit">Filter</button>
+</form>
+
+<table style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr style="background:#417690; color:white; text-align:left;">
+      <th style="padding:8px;">Expert</th>
+      <th style="padding:8px;">Email</th>
+      <th style="padding:8px;">Orders</th>
+      <th style="padding:8px;">Gross (KES)</th>
+      <th style="padding:8px;">Platform Fee (10%)</th>
+      <th style="padding:8px;">Net Payout</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in earnings %}
+    <tr style="border-bottom:1px solid #ccc;">
+      <td style="padding:8px;">{{ row.username }}</td>
+      <td style="padding:8px;">{{ row.email }}</td>
+      <td style="padding:8px;">{{ row.orders }}</td>
+      <td style="padding:8px;">{{ row.gross|floatformat:2 }}</td>
+      <td style="padding:8px;">{{ row.fee|floatformat:2 }}</td>
+      <td style="padding:8px;"><strong>{{ row.net|floatformat:2 }}</strong></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" style="padding:8px;">No completed paid orders in this period.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

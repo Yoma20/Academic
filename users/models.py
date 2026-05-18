@@ -13,6 +13,7 @@ class CustomUser(AbstractUser):
     USER_TYPE_CHOICES = (
         ('student', 'Student'),
         ('expert', 'Expert'),
+        ('admin', 'Admin'),
     )
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
     is_email_verified = models.BooleanField(default=False)

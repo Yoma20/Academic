@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import AcademicCategory, Gig, GigPackage, GigExtra
+from django.db.models import Sum, Count
+from django.utils.html import format_html
+from django.urls import path
+from django.template.response import TemplateResponse
+from django.utils import timezone
+from datetime import timedelta
+from .models import AcademicCategory, Gig, GigPackage, GigExtra, Order
+
 
 @admin.register(AcademicCategory)
 class AcademicCategoryAdmin(admin.ModelAdmin):
@@ -17,3 +24,75 @@ class GigPackageAdmin(admin.ModelAdmin):
 @admin.register(GigExtra)
 class GigExtraAdmin(admin.ModelAdmin):
     list_display = ['gig', 'name', 'price']
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 'student', 'get_expert', 'get_gig_title',
+        'total_price', 'status', 'payment_status', 'updated_at'
+    ]
+    list_filter  = ['status', 'payment_status', 'updated_at']
+    search_fields = ['student__username', 'package__gig__expert__user__username']
+    readonly_fields = ['created_at', 'updated_at']
+
+    def get_expert(self, obj):
+        try:
+            return obj.package.gig.expert.user.username
+        except Exception:
+            return '-'
+    get_expert.short_description = 'Expert'
+
+    def get_gig_title(self, obj):
+        try:
+            return obj.package.gig.title
+        except Exception:
+            return '-'
+    get_gig_title.short_description = 'Gig'
+
+    # ── Custom earnings summary page ──────────────────────────────────────
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path('earnings/', self.admin_site.admin_view(self.earnings_view), name='order-earnings'),
+        ]
+        return custom + urls
+
+    def earnings_view(self, request):
+        today      = timezone.now().date()
+        week_start = today - timedelta(days=today.weekday())
+        week_end   = week_start + timedelta(days=6)
+
+        from_date = request.GET.get('from', str(week_start))
+        to_date   = request.GET.get('to',   str(week_end))
+
+        orders = Order.objects.filter(
+            status='completed',
+            payment_status='paid',
+            updated_at__date__range=[from_date, to_date],
+        ).select_related('package__gig__expert__user')
+
+        from collections import defaultdict
+        earnings = defaultdict(lambda: {'username': '', 'email': '', 'orders': 0, 'gross': 0.0, 'fee': 0.0, 'net': 0.0})
+
+        for order in orders:
+            try:
+                user = order.package.gig.expert.user
+            except Exception:
+                continue
+            earnings[user.id]['username'] = user.username
+            earnings[user.id]['email']    = user.email
+            earnings[user.id]['orders']  += 1
+            gross = float(order.total_price)
+            earnings[user.id]['gross']   += gross
+            earnings[user.id]['fee']     += gross * 0.10
+            earnings[user.id]['net']     += gross * 0.90
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title':     'Expert Earnings',
+            'from_date': from_date,
+            'to_date':   to_date,
+            'earnings':  sorted(earnings.values(), key=lambda x: x['net'], reverse=True),
+        }
+        return TemplateResponse(request, 'admin/order_earnings.html', context)

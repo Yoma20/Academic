@@ -8,13 +8,526 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+
 from .models import AcademicCategory, Gig, GigPackage, GigExtra, Order, OrderRequirements, Review
 from .serializers import (
     AcademicCategorySerializer, GigSerializer, GigWriteSerializer,
     OrderSerializer, OrderRequirementsSerializer, ReviewSerializer,
 )
 
+
+from collections import defaultdict
+from datetime import timedelta
+
+from django.conf import settings
+from django.db.models import Sum
+from django.utils import timezone
+
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from users.permissions import IsAdminUser
+from .models import (
+    AcademicCategory, Gig, GigPackage, GigExtra,
+    Order, OrderRequirements, Review,
+)
+from .serializers import (
+    AcademicCategorySerializer,
+    GigSerializer, GigWriteSerializer,
+    OrderSerializer, OrderRequirementsSerializer,
+    ReviewSerializer,
+)
+
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+# ─── Categories ───────────────────────────────────────────────────────────────
+
+class CategoryListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        top_level = AcademicCategory.objects.filter(parent=None)
+        serializer = AcademicCategorySerializer(top_level, many=True)
+        return Response(serializer.data)
+
+
+# ─── Gig CRUD ─────────────────────────────────────────────────────────────────
+
+class GigListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        gigs = Gig.objects.filter(is_active=True).select_related(
+            'expert', 'expert__user', 'category'
+        ).prefetch_related('packages', 'extras')
+        serializer = GigSerializer(gigs, many=True)
+        return Response(serializer.data)
+
+
+class GigDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, slug):
+        try:
+            gig = Gig.objects.select_related(
+                'expert', 'expert__user', 'category'
+            ).prefetch_related('packages', 'extras').get(slug=slug)
+        except Gig.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(GigSerializer(gig).data)
+
+
+class GigCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != 'expert':
+            return Response(
+                {'detail': 'Only experts can create gigs.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            expert_profile = request.user.expert_profile
+        except Exception:
+            return Response(
+                {'detail': 'Expert profile not found.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = GigWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        gig = serializer.save(expert=expert_profile)
+        return Response(GigSerializer(gig).data, status=status.HTTP_201_CREATED)
+
+
+class GigUpdateDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_gig(self, slug, user):
+        try:
+            gig = Gig.objects.get(slug=slug)
+        except Gig.DoesNotExist:
+            return None, Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if gig.expert.user != user:
+            return None, Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        return gig, None
+
+    def patch(self, request, slug):
+        gig, err = self._get_gig(slug, request.user)
+        if err:
+            return err
+        serializer = GigWriteSerializer(gig, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        gig = serializer.save()
+        return Response(GigSerializer(gig).data)
+
+    def delete(self, request, slug):
+        gig, err = self._get_gig(slug, request.user)
+        if err:
+            return err
+        gig.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MyGigsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            expert_profile = request.user.expert_profile
+        except Exception:
+            return Response([], status=status.HTTP_200_OK)
+        gigs = Gig.objects.filter(expert=expert_profile).prefetch_related('packages', 'extras')
+        return Response(GigSerializer(gigs, many=True).data)
+
+
+# ─── Orders ───────────────────────────────────────────────────────────────────
+
+class CreatePaymentIntentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        package_id = request.data.get('package_id')
+        extra_ids  = request.data.get('extra_ids', [])
+
+        try:
+            package = GigPackage.objects.select_related('gig__expert').get(id=package_id)
+        except GigPackage.DoesNotExist:
+            return Response({'detail': 'Package not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        extras = GigExtra.objects.filter(id__in=extra_ids)
+        extras_price = sum(e.price for e in extras)
+        total_price  = package.price + extras_price
+
+        intent = stripe.PaymentIntent.create(
+            amount=int(total_price * 100),
+            currency='usd',
+            metadata={
+                'package_id': package.id,
+                'extra_ids':  ','.join(str(e) for e in extra_ids),
+                'user_id':    request.user.id,
+            },
+        )
+
+        order = Order.objects.create(
+            student=request.user,
+            package=package,
+            package_price=package.price,
+            extras_price=extras_price,
+            total_price=total_price,
+            stripe_payment_intent_id=intent['id'],
+        )
+        order.extras.set(extras)
+
+        return Response({
+            'client_secret': intent['client_secret'],
+            'order_id':      order.id,
+        })
+
+
+class SubmitRequirementsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if hasattr(order, 'requirements'):
+            return Response(
+                {'detail': 'Requirements already submitted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = OrderRequirementsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(order=order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class OrderListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.user_type == 'expert':
+            orders = Order.objects.filter(
+                package__gig__expert__user=user
+            ).select_related('package__gig', 'student').prefetch_related('extras')
+        else:
+            orders = Order.objects.filter(student=user).select_related(
+                'package__gig'
+            ).prefetch_related('extras')
+        return Response(OrderSerializer(orders, many=True).data)
+
+
+class OrderDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, order_id):
+        try:
+            order = Order.objects.select_related(
+                'package__gig__expert__user', 'student'
+            ).prefetch_related('extras').get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        is_student = order.student == user
+        is_expert  = (
+            hasattr(user, 'expert_profile')
+            and order.package.gig.expert == user.expert_profile
+        )
+        if not (is_student or is_expert or user.is_staff):
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+
+        return Response(OrderSerializer(order).data)
+
+
+class ApproveDeliveryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status != 'submitted':
+            return Response(
+                {'detail': 'Order is not in submitted state.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.status         = 'completed'
+        order.payment_status = 'paid'
+        order.save(update_fields=['status', 'payment_status'])
+
+        # Increment gig sales counter
+        try:
+            gig = order.package.gig
+            gig.sales += 1
+            gig.save(update_fields=['sales'])
+        except Exception:
+            pass
+
+        return Response(OrderSerializer(order).data)
+
+
+class RefundOrderView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.payment_status not in ('held', 'paid'):
+            return Response(
+                {'detail': 'Order cannot be refunded.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            stripe.Refund.create(payment_intent=order.stripe_payment_intent_id)
+        except stripe.error.StripeError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        order.payment_status = 'refunded'
+        order.status         = 'archived'
+        order.save(update_fields=['payment_status', 'status'])
+        return Response(OrderSerializer(order).data)
+
+
+class StripeWebhookView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        payload    = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
+        endpoint_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+        except (ValueError, stripe.error.SignatureVerificationError) as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if event['type'] == 'payment_intent.succeeded':
+            intent = event['data']['object']
+            try:
+                order = Order.objects.get(stripe_payment_intent_id=intent['id'])
+                if order.payment_status == 'unpaid':
+                    order.payment_status = 'held'
+                    order.status         = 'in_progress'
+                    order.save(update_fields=['payment_status', 'status'])
+            except Order.DoesNotExist:
+                pass
+
+        return Response({'status': 'ok'})
+
+
+class ExpertSubmitWorkView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.select_related(
+                'package__gig__expert__user'
+            ).get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.package.gig.expert.user != request.user:
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if order.status != 'in_progress':
+            return Response(
+                {'detail': 'Order must be in-progress before submitting work.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.status = 'submitted'
+        order.save(update_fields=['status'])
+        return Response(OrderSerializer(order).data)
+
+
+# ─── Reviews ──────────────────────────────────────────────────────────────────
+
+class CreateReviewView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.select_related(
+                'package__gig__expert', 'student'
+            ).get(id=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.status != 'completed':
+            return Response(
+                {'detail': 'You can only review a completed order.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if hasattr(order, 'review'):
+            return Response(
+                {'detail': 'You have already reviewed this order.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            order=order,
+            student=request.user,
+            expert=order.package.gig.expert,
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ExpertReviewListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, expert_id):
+        reviews = Review.objects.filter(expert_id=expert_id).select_related(
+            'student', 'order__package__gig'
+        ).order_by('-created_at')
+        return Response(ReviewSerializer(reviews, many=True).data)
+
+
+# ─── Admin Earnings View ──────────────────────────────────────────────────────
+
+class AdminEarningsView(APIView):
+    """
+    GET /api/gigs/earnings/?from=YYYY-MM-DD&to=YYYY-MM-DD
+    Admin only. Returns per-expert earnings summary for a date range.
+    Defaults to the current week if no params provided.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        today      = timezone.now().date()
+        week_start = today - timedelta(days=today.weekday())
+        week_end   = week_start + timedelta(days=6)
+
+        from_date = request.query_params.get('from', str(week_start))
+        to_date   = request.query_params.get('to',   str(week_end))
+
+        orders = (
+            Order.objects
+            .filter(
+                status='completed',
+                payment_status='paid',
+                updated_at__date__range=[from_date, to_date],
+            )
+            .select_related('package__gig__expert', 'package__gig__expert__user')
+        )
+
+        earnings = defaultdict(lambda: {
+            'username': '',
+            'email':    '',
+            'orders':   0,
+            'total':    0.0,
+            'paid':     False,
+        })
+
+        for order in orders:
+            try:
+                expert_user = order.package.gig.expert.user
+            except Exception:
+                continue
+            earnings[expert_user.id]['username'] = expert_user.username
+            earnings[expert_user.id]['email']    = expert_user.email
+            earnings[expert_user.id]['orders']  += 1
+            earnings[expert_user.id]['total']   += float(order.total_price)
+
+        return Response({
+            'period':  {'from': str(from_date), 'to': str(to_date)},
+            'experts': list(earnings.values()),
+        })
+
+
+# ─── Seller Earnings View ─────────────────────────────────────────────────────
+
+class SellerEarningsView(APIView):
+    """
+    GET /api/gigs/my-earnings/?period=week|month|all
+    Authenticated expert only. Returns their own earnings breakdown.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.user_type != 'expert':
+            return Response(
+                {'detail': 'Only experts have earnings.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        period = request.query_params.get('period', 'month')
+        today  = timezone.now().date()
+
+        if period == 'week':
+            from_date = today - timedelta(days=today.weekday())
+        elif period == 'month':
+            from_date = today.replace(day=1)
+        else:  # all
+            from_date = None
+
+        qs = Order.objects.filter(
+            package__gig__expert__user=user,
+            status='completed',
+        ).select_related('package__gig', 'student')
+
+        if from_date:
+            qs = qs.filter(updated_at__date__gte=from_date)
+
+        orders_data = []
+        for order in qs.order_by('-updated_at'):
+            try:
+                gig_title = order.package.gig.title
+            except Exception:
+                gig_title = None
+            orders_data.append({
+                'id':               order.id,
+                'gig_title':        gig_title,
+                'student_username': order.student.username,
+                'total_price':      str(order.total_price),
+                'payment_status':   order.payment_status,
+                'status':           order.status,
+                'updated_at':       order.updated_at,
+            })
+
+        gross = sum(float(o['total_price']) for o in orders_data)
+        fee   = gross * 0.10
+        net   = gross - fee
+
+        pending_qs = Order.objects.filter(
+            package__gig__expert__user=user,
+            status='completed',
+            payment_status__in=['pending', 'unpaid'],
+        )
+        if from_date:
+            pending_qs = pending_qs.filter(updated_at__date__gte=from_date)
+        pending_gross = float(pending_qs.aggregate(t=Sum('total_price'))['t'] or 0)
+        pending_net   = pending_gross * 0.90
+
+        return Response({
+            'period': period,
+            'summary': {
+                'gross':            round(gross, 2),
+                'fee':              round(fee, 2),
+                'net':              round(net, 2),
+                'pending':          round(pending_net, 2),
+                'completed_orders': len(orders_data),
+            },
+            'orders': orders_data,
+        })
 
 
 # ─── Category views ───────────────────────────────────────────────────────────
@@ -110,6 +623,59 @@ class GigUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         if not hasattr(self.request.user, 'expert_profile'):
             raise PermissionDenied("Only experts can manage gigs.")
         return super().get_object()
+
+
+
+class ConfirmOrderPaymentView(APIView):
+    """
+    POST /api/gigs/orders/<order_id>/confirm-payment/
+    Called by the frontend after:
+      - PayPal payment approved
+      - Student submits bank transfer notification
+
+    Body: { method: "paypal" | "bank_transfer", paypal_order_id?: string }
+
+    PayPal   → sets payment_status = "paid"   (PayPal already captured the money)
+    Bank     → sets payment_status = "pending" (you manually confirm receipt later)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(pk=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response(
+                {"detail": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        method = request.data.get("method")
+
+        if method == "paypal":
+            order.payment_status = "paid"
+            order.status = "in_progress"
+            order.save(update_fields=["payment_status", "status"])
+            return Response({
+                "detail": "Payment confirmed.",
+                "payment_status": order.payment_status,
+            })
+
+        elif method == "bank_transfer":
+            order.payment_status = "pending"
+            order.save(update_fields=["payment_status"])
+            return Response({
+                "detail": "Transfer noted. We will confirm receipt within 24 hours.",
+                "payment_status": order.payment_status,
+            })
+
+        else:
+            return Response(
+                {"detail": "Invalid payment method."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
     
 
 

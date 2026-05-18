@@ -22,5 +22,12 @@ class ExpertProfileSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'rating', 'avg_rubric_adherence', 'avg_timeliness',
             'avg_communication', 'total_reviews', 'recommendation_rate',
-            'stripe_account_verified',
+            
         ]
+
+        def validate_user_type(self, value):
+            if value == 'admin':
+                raise serializers.ValidationError("Invalid user type.")
+            return value
+
+                
