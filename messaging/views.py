@@ -297,22 +297,6 @@ class RespondOfferView(APIView):
             return Response(OfferSerializer(offer).data)
 
         # ── Accept flow ──────────────────────────────────────────────────────
-        # Validate expert has Stripe set up before creating order
-        expert = offer.sender
-        try:
-            expert_profile = expert.expert_profile
-            if not expert_profile.stripe_account_id or not expert_profile.stripe_account_verified:
-                return Response(
-                    {"detail": "This expert has not set up their payout account yet."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        except Exception:
-            return Response(
-                {"detail": "Expert profile not found."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Create Order matching the Order model in gigs/models.py
         try:
             from gigs.models import Order
             order = Order.objects.create(
@@ -333,30 +317,6 @@ class RespondOfferView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # Create Stripe PaymentIntent
-        try:
-            import stripe
-            from django.conf import settings as django_settings
-            stripe.api_key = django_settings.STRIPE_SECRET_KEY
-
-            amount_cents = int(offer.price * 100)
-            intent = stripe.PaymentIntent.create(
-                amount=amount_cents,
-                currency="usd",
-                transfer_data={"destination": expert_profile.stripe_account_id},
-                application_fee_amount=int(amount_cents * 0.10),  # 10% platform fee
-                metadata={"order_id": order.id, "offer_id": offer.id},
-            )
-            order.stripe_payment_intent_id = intent["id"]
-            order.save(update_fields=["stripe_payment_intent_id"])
-
-            client_secret = intent["client_secret"]
-        except Exception as e:
-            return Response(
-                {"detail": f"Payment setup failed: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
         # Post confirmation message in chat
         Message.objects.create(
             conversation=conversation,
@@ -370,7 +330,7 @@ class RespondOfferView(APIView):
             {
                 "offer": OfferSerializer(offer).data,
                 "order_id": order.id,
-                "client_secret": client_secret,
+                "amount": str(offer.price),
             },
             status=status.HTTP_200_OK,
         )
