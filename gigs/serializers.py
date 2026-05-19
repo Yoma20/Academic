@@ -146,9 +146,16 @@ class OrderSerializer(serializers.ModelSerializer):
     student_username = serializers.CharField(
         source='student.username', read_only=True
     )
+    student_user_id = serializers.IntegerField(      
+        source='student.id', read_only=True
+    )
+    expert_user_id = serializers.IntegerField(       
+        source='package.gig.expert.user.id', read_only=True
+    )
     gig_title = serializers.CharField(
         source='package.gig.title', read_only=True
     )
+    # ... rest unchanged
     gig_cover = serializers.CharField(
         source='package.gig.cover_image', read_only=True
     )
@@ -160,13 +167,13 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'student_username', 'gig_title', 'gig_cover',
-            'expert_username', 'package', 'extras',
+            'id', 'student_username', 'student_user_id', 'gig_title', 'gig_cover',
+            'expert_username', 'expert_user_id', 'package', 'extras',
             'status', 'payment_status',
             'package_price', 'extras_price', 'total_price',
             'deadline', 'requirements', 'requirements_submitted',
             'created_at', 'updated_at',
-        ]
+        ],
         read_only_fields = [
             'student', 'package_price', 'extras_price', 'total_price',
             'payment_status',
