@@ -1,4 +1,3 @@
-import stripe
 from django.conf import settings
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
@@ -8,8 +7,6 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from gigs.models import Order
 from .models import Dispute, DisputeEvidence
 from .serializers import DisputeSerializer, DisputeEvidenceSerializer
-
-stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class OpenDisputeView(APIView):
@@ -184,38 +181,14 @@ class AdminResolveDisputeView(APIView):
 
         order = dispute.order
 
-        try:
-            if decision == 'refund':
-                stripe.PaymentIntent.cancel(order.stripe_payment_intent_id)
-                order.payment_status = 'refunded'
-                order.status = 'archived'
-                dispute.status = 'resolved_refund'
-            else:
-                expert_profile = order.package.gig.expert
-                amount_cents = int(order.total_price * 100)
-                fee_cents = int(amount_cents * (order.platform_fee_percent / 100))
-                transfer_cents = amount_cents - fee_cents
-
-                stripe.PaymentIntent.capture(order.stripe_payment_intent_id)
-                transfer = stripe.Transfer.create(
-                    amount=transfer_cents,
-                    currency="usd",
-                    destination=expert_profile.stripe_account_id,
-                    metadata={
-                        "dispute_id": dispute.id,
-                        "resolved_by_admin": True
-                    },
-                )
-                order.stripe_transfer_id = transfer.id
-                order.payment_status = 'released'
-                order.status = 'completed'
-                dispute.status = 'resolved_release'
-
-        except stripe.error.StripeError as e:
-            return Response(
-                {"detail": f"Stripe error: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
+        if decision == 'refund':
+            order.payment_status = 'refunded'
+            order.status = 'archived'
+            dispute.status = 'resolved_refund'
+        else:
+            order.payment_status = 'released'
+            order.status = 'completed'
+            dispute.status = 'resolved_release'
 
         dispute.resolution_notes = resolution_notes
         dispute.resolved_by = request.user
