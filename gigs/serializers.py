@@ -172,7 +172,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'status', 'payment_status',
             'package_price', 'extras_price', 'total_price',
             'deadline', 'requirements', 'requirements_submitted',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at', 'expert_user_id',
         ],
         read_only_fields = [
             'student', 'package_price', 'extras_price', 'total_price',
