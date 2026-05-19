@@ -7,7 +7,7 @@ from .views import (
     OrderListView, OrderDetailView, ApproveDeliveryView,
     RefundOrderView, StripeWebhookView,
     ExpertSubmitWorkView, CreateReviewView, ExpertReviewListView,
-    AdminEarningsView, SellerEarningsView,
+    AdminEarningsView, SellerEarningsView, ConfirmPaymentView,
 )
 
 urlpatterns = [
@@ -32,6 +32,7 @@ urlpatterns = [
     path('orders/<int:order_id>/approve/', ApproveDeliveryView.as_view(), name='approve-delivery'),
     path('orders/<int:order_id>/refund/', RefundOrderView.as_view(), name='refund-order'),
     path('orders/<int:order_id>/review/', CreateReviewView.as_view(), name='create-review'),
+    path('orders/<int:order_id>/confirm-payment/', ConfirmPaymentView.as_view(), name='confirm-payment'),
 
     # Expert reviews
     path('experts/<int:expert_id>/reviews/', ExpertReviewListView.as_view(), name='expert-reviews'),

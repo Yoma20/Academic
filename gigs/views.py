@@ -555,7 +555,21 @@ class SellerEarningsView(APIView):
             'orders': orders_data,
         })
 
+class ConfirmPaymentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        method = request.data.get('method')
+        order.payment_status = 'held' if method == 'paypal' else 'unpaid'
+        order.status = 'in_progress' if method == 'paypal' else 'pending'
+        order.save(update_fields=['payment_status', 'status'])
+
+        return Response({'detail': 'Payment confirmed.'})
 # ─── Category views ───────────────────────────────────────────────────────────
 
 class CategoryListView(generics.ListAPIView):
