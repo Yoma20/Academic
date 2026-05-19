@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     ConversationListView,
+    RedeemPayTokenView,
     StartConversationView,
     MessageListView,
     SendMessageView,
@@ -23,6 +24,7 @@ urlpatterns = [
 
     # Offer response — buyer accepts or declines
     path("offers/<int:offer_id>/respond/", RespondOfferView.as_view(), name="respond-offer"),
+    path("pay-token/redeem/", RedeemPayTokenView.as_view()),
 
     # Unread badge count
     path("unread-count/", UnreadCountView.as_view(), name="unread-count"),

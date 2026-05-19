@@ -4,6 +4,8 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+import secrets
+from django.core.cache import cache
 
 from .models import Conversation, Message, Offer
 from .serializers import (
@@ -339,16 +341,53 @@ class RespondOfferView(APIView):
         )
         conversation.save()
 
+        # Generate a secure one-time payment token (expires in 15 minutes)
+        pay_token = secrets.token_urlsafe(32)
+        cache.set(f"pay_token:{pay_token}", {
+            "order_id": order.id,
+            "amount": str(offer.price),
+            "user_id": request.user.id,
+        }, timeout=900)  # 15 minutes
+
         return Response(
             {
                 "offer": OfferSerializer(offer).data,
-                "order_id": order.id,
-                "amount": str(offer.price),
+                "pay_token": pay_token,
             },
             status=status.HTTP_200_OK,
         )
 
+class RedeemPayTokenView(APIView):
+    """
+    POST /api/messaging/pay-token/redeem/
+    Body: { token }
+    Returns order_id + amount if token is valid and belongs to the requesting user.
+    One-time use — token is deleted on redemption.
+    """
+    permission_classes = [permissions.IsAuthenticated]
 
+    def post(self, request):
+        from django.core.cache import cache
+        token = request.data.get("token", "").strip()
+        if not token:
+            return Response({"detail": "Token required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = cache.get(f"pay_token:{token}")
+        if not data:
+            return Response({"detail": "Token expired or invalid."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Must be the same user who accepted the offer
+        if data["user_id"] != request.user.id:
+            return Response({"detail": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Delete immediately — one-time use
+        cache.delete(f"pay_token:{token}")
+
+        return Response({
+            "order_id": data["order_id"],
+            "amount": data["amount"],
+        })
+    
 class UnreadCountView(APIView):
     """
     GET /api/messaging/unread-count/
