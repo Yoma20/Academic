@@ -88,6 +88,13 @@ TEMPLATES = [
     },
 ]
 
+# ── Cache — Redis backend ─────────────────────────────────────────────────────
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("REDIS_URL", "redis://localhost:6379"),
+    }
+}
 # ── ASGI (replaces WSGI_APPLICATION for WebSocket support) ───────────────────
 ASGI_APPLICATION = 'academic_platform.asgi.application'
 
