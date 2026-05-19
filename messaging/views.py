@@ -79,10 +79,23 @@ class StartConversationView(APIView):
         if gig_id and not conversation.gig_id:
             try:
                 from gigs.models import Gig
-                conversation.gig = Gig.objects.get(pk=gig_id)
+                gig = Gig.objects.get(pk=gig_id, is_active=True)
+
+                # Gig must belong to the expert in this conversation (not spoofable)
+                other = recipient if user != recipient else user
+                if gig.expert.user != other:
+                    return Response(
+                        {"detail": "Gig does not belong to this expert."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                conversation.gig = gig
                 conversation.save()
-            except Exception:
-                pass
+            except Gig.DoesNotExist:
+                return Response(
+                    {"detail": "Invalid or inactive gig."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         if initial_message:
             Message.objects.create(

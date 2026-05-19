@@ -135,7 +135,9 @@ class Order(models.Model):
     package = models.ForeignKey(
         GigPackage,
         on_delete=models.PROTECT,
-        related_name='orders'
+        related_name='orders',
+        null=True,
+        blank=True,
     )
     extras = models.ManyToManyField(GigExtra, blank=True)
 
