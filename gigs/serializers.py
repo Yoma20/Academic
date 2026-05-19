@@ -165,12 +165,11 @@ class OrderSerializer(serializers.ModelSerializer):
             'status', 'payment_status',
             'package_price', 'extras_price', 'total_price',
             'deadline', 'requirements', 'requirements_submitted',
-            'stripe_payment_intent_id',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'student', 'package_price', 'extras_price', 'total_price',
-            'payment_status', 'stripe_payment_intent_id',
+            'payment_status',
         ]
 
     def get_requirements_submitted(self, obj):
