@@ -202,6 +202,7 @@ def _user_payload(user):
         "email":     user.email,
         "user_type": user.user_type,
         "isSeller":  user.user_type == "expert",
+        "profile_picture": getattr(user, "profile_picture", None) or None,
     }
 
 
