@@ -174,7 +174,7 @@ class SendMessageView(APIView):
         )
         conversation.save()
 
-        return Response(MessageSerializer(message).data, status=status.HTTP_201_CREATED)
+        return Response(MessageSerializer(message, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class SendOfferView(APIView):
@@ -257,8 +257,8 @@ class SendOfferView(APIView):
 
         return Response(
             {
-                "message": MessageSerializer(message).data,
-                "offer": OfferSerializer(offer).data,
+                "message": MessageSerializer(message, context={"request": request}).data,
+                "offer": OfferSerializer(offer, context={"request": request}).data,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -314,6 +314,7 @@ class RespondOfferView(APIView):
         # ── Accept flow ──────────────────────────────────────────────────────
         try:
             from gigs.models import Order
+            from datetime import timedelta
             order = Order.objects.create(
                 student=request.user,
                 package=offer.package,
@@ -322,6 +323,7 @@ class RespondOfferView(APIView):
                 total_price=offer.price,
                 status="pending",
                 payment_status="unpaid",
+                deadline=timezone.now() + timedelta(days=offer.delivery_days),
             )
             offer.status = Offer.STATUS_ACCEPTED
             offer.order = order
@@ -380,8 +382,9 @@ class RedeemPayTokenView(APIView):
         if data["user_id"] != request.user.id:
             return Response({"detail": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)
 
-        # Delete immediately — one-time use
-        cache.delete(f"pay_token:{token}")
+        # Do NOT delete here — token is deleted by ConfirmPaymentView after
+        # payment is confirmed, so the user can still choose PayPal vs bank
+        # without the token being consumed before they complete payment.
 
         return Response({
             "order_id": data["order_id"],

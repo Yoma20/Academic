@@ -68,7 +68,7 @@ class OrderAdmin(admin.ModelAdmin):
 
         orders = Order.objects.filter(
             status='completed',
-            payment_status='paid',
+            payment_status='released',
             updated_at__date__range=[from_date, to_date],
         ).select_related('package__gig__expert__user')
 

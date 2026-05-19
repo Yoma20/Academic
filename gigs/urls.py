@@ -3,11 +3,13 @@ from .views import (
     CategoryListView,
     GigListView, GigDetailView, GigCreateView,
     GigUpdateDeleteView, MyGigsView,
-    CreatePaymentIntentView, SubmitRequirementsView,
-    OrderListView, OrderDetailView, ApproveDeliveryView,
-    RefundOrderView, StripeWebhookView,
-    ExpertSubmitWorkView, CreateReviewView, ExpertReviewListView,
-    AdminEarningsView, SellerEarningsView, ConfirmPaymentView,
+    CreatePaymentIntentView, ConfirmPaymentView,
+    SubmitRequirementsView,
+    OrderListView, OrderDetailView,
+    ExpertSubmitWorkView,
+    ApproveDeliveryView, RefundOrderView,
+    CreateReviewView, ExpertReviewListView,
+    AdminEarningsView, SellerEarningsView,
 )
 
 urlpatterns = [
@@ -37,10 +39,7 @@ urlpatterns = [
     # Expert reviews
     path('experts/<int:expert_id>/reviews/', ExpertReviewListView.as_view(), name='expert-reviews'),
 
-    # Stripe webhook
-    path('webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
-
-    # Slug patterns LAST — catch-all, must come after everything fixed
+    # Slug patterns LAST
     path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
     path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
 ]
