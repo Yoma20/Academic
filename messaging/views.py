@@ -19,6 +19,24 @@ from .serializers import (
 
 User = get_user_model()
 
+ALLOWED_MIME_TYPES = {
+    # Images
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    # Video
+    "video/mp4", "video/webm", "video/quicktime",
+    # Documents
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "application/zip",
+}
+MAX_FILE_SIZE_MB = 20
+
 
 class IsConversationParticipant(permissions.BasePermission):
     """Only allows access to users who are a participant in the conversation."""
@@ -33,10 +51,6 @@ class IsConversationParticipant(permissions.BasePermission):
 
 
 class ConversationListView(generics.ListAPIView):
-    """
-    GET /api/messaging/conversations/
-    Returns all conversations for the authenticated user, newest first.
-    """
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
@@ -54,11 +68,6 @@ class ConversationListView(generics.ListAPIView):
 
 
 class StartConversationView(APIView):
-    """
-    POST /api/messaging/conversations/start/
-    Body: { recipient_id, initial_message?, gig_id? }
-    Creates or retrieves a conversation and optionally sends the first message.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -72,52 +81,29 @@ class StartConversationView(APIView):
         user = request.user
 
         p1, p2 = (user, recipient) if user.id < recipient.id else (recipient, user)
+        conversation, created = Conversation.objects.get_or_create(participant_1=p1, participant_2=p2)
 
-        conversation, created = Conversation.objects.get_or_create(
-            participant_1=p1, participant_2=p2
-        )
-
-        # Attach gig context if provided and not already set
         if gig_id and not conversation.gig_id:
             try:
                 from gigs.models import Gig
                 gig = Gig.objects.get(pk=gig_id, is_active=True)
-
-                # Gig must belong to the expert in this conversation (not spoofable)
                 other = recipient if user != recipient else user
                 if gig.expert.user != other:
-                    return Response(
-                        {"detail": "Gig does not belong to this expert."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
+                    return Response({"detail": "Gig does not belong to this expert."}, status=status.HTTP_400_BAD_REQUEST)
                 conversation.gig = gig
                 conversation.save()
             except Gig.DoesNotExist:
-                return Response(
-                    {"detail": "Invalid or inactive gig."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return Response({"detail": "Invalid or inactive gig."}, status=status.HTTP_400_BAD_REQUEST)
 
         if initial_message:
-            Message.objects.create(
-                conversation=conversation,
-                sender=user,
-                content=initial_message,
-            )
+            Message.objects.create(conversation=conversation, sender=user, content=initial_message)
             conversation.save()
 
         out = ConversationSerializer(conversation, context={"request": request})
-        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        return Response(out.data, status=status_code)
+        return Response(out.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 class MessageListView(generics.ListAPIView):
-    """
-    GET /api/messaging/conversations/<conv_id>/messages/
-    Returns all messages in a conversation (oldest first).
-    Marks unread messages as read on retrieval.
-    """
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated, IsConversationParticipant]
     pagination_class = None
@@ -125,30 +111,27 @@ class MessageListView(generics.ListAPIView):
     def get_queryset(self):
         conv_id = self.kwargs["conv_id"]
         user = self.request.user
-
         try:
             conversation = Conversation.objects.get(pk=conv_id)
         except Conversation.DoesNotExist:
             return Message.objects.none()
-
         self.check_object_permissions(self.request, conversation)
-
-        Message.objects.filter(
-            conversation=conversation, is_read=False
-        ).exclude(sender=user).update(is_read=True)
-
-        return (
-            Message.objects.filter(conversation=conversation)
-            .select_related("sender", "sender__expert_profile", "offer", "offer__sender")
-
+        Message.objects.filter(conversation=conversation, is_read=False).exclude(sender=user).update(is_read=True)
+        return Message.objects.filter(conversation=conversation).select_related(
+            "sender", "sender__expert_profile", "offer", "offer__sender"
         )
 
 
 class SendMessageView(APIView):
     """
     POST /api/messaging/conversations/<conv_id>/send/
-    Body: { content }
-    Sends a plain text message in an existing conversation.
+    Body (JSON):      { content }
+    Body (multipart): { content?, files[] }
+
+    At least one of content or files must be present.
+    Each file is saved as a separate Message with message_type="file".
+    Text message is created first (if present), then one message per file.
+    Returns a single message object, or a list when multiple messages are created.
     """
     permission_classes = [permissions.IsAuthenticated, IsConversationParticipant]
 
@@ -161,37 +144,61 @@ class SendMessageView(APIView):
         self.check_object_permissions(request, conversation)
 
         content = request.data.get("content", "").strip()
-        if not content:
+        files = request.FILES.getlist("files")
+
+        if not content and not files:
             return Response({"detail": "Message content cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
-        if len(content) > 5000:
+
+        if content and len(content) > 5000:
             return Response({"detail": "Message too long (max 5000 characters)."}, status=status.HTTP_400_BAD_REQUEST)
 
-        message = Message.objects.create(
-            conversation=conversation,
-            sender=request.user,
-            content=content,
-            message_type="text",
-        )
-        conversation.save()
+        # Validate all files before creating anything
+        for f in files:
+            if f.content_type not in ALLOWED_MIME_TYPES:
+                return Response(
+                    {"detail": f"File type '{f.content_type}' is not allowed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if f.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+                return Response(
+                    {"detail": f"'{f.name}' exceeds the {MAX_FILE_SIZE_MB} MB limit."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        return Response(MessageSerializer(message, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        created_messages = []
+
+        if content:
+            created_messages.append(Message.objects.create(
+                conversation=conversation,
+                sender=request.user,
+                content=content,
+                message_type="text",
+            ))
+
+        for f in files:
+            created_messages.append(Message.objects.create(
+                conversation=conversation,
+                sender=request.user,
+                content="",
+                message_type="file",
+                file=f,
+                file_name=f.name,
+            ))
+
+        conversation.save()  # bumps updated_at
+
+        serialized = MessageSerializer(created_messages, many=True, context={"request": request}).data
+        if len(serialized) == 1:
+            return Response(serialized[0], status=status.HTTP_201_CREATED)
+        return Response(serialized, status=status.HTTP_201_CREATED)
 
 
 class SendOfferView(APIView):
-    """
-    POST /api/messaging/conversations/<conv_id>/offer/
-    Only experts can send offers. Creates an Offer + a linked offer-type Message.
-    Body: { title, description?, price, delivery_days, revision_number, package_id?, parent_offer_id? }
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, conv_id):
-        # Only experts can send offers
         if request.user.user_type != "expert":
-            return Response(
-                {"detail": "Only experts can send offers."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            return Response({"detail": "Only experts can send offers."}, status=status.HTTP_403_FORBIDDEN)
 
         try:
             conversation = Conversation.objects.get(pk=conv_id)
@@ -205,7 +212,6 @@ class SendOfferView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        # Resolve optional package
         package = None
         if data.get("package_id"):
             try:
@@ -214,22 +220,17 @@ class SendOfferView(APIView):
             except Exception:
                 return Response({"detail": "Package not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Resolve optional parent offer (counter-offer scenario)
         parent_offer = None
         if data.get("parent_offer_id"):
             try:
                 parent_offer = Offer.objects.get(pk=data["parent_offer_id"], conversation=conversation)
-                # Mark parent as countered
                 parent_offer.status = Offer.STATUS_COUNTERED
                 parent_offer.save(update_fields=["status"])
             except Offer.DoesNotExist:
                 pass
 
-        # Expire any other pending offers in this conversation from this sender
         Offer.objects.filter(
-            conversation=conversation,
-            sender=request.user,
-            status=Offer.STATUS_PENDING,
+            conversation=conversation, sender=request.user, status=Offer.STATUS_PENDING,
         ).update(status=Offer.STATUS_EXPIRED)
 
         offer = Offer.objects.create(
@@ -245,7 +246,6 @@ class SendOfferView(APIView):
             expires_at=timezone.now() + timezone.timedelta(days=7),
         )
 
-        # Create the linked message so it appears in the chat thread
         message = Message.objects.create(
             conversation=conversation,
             sender=request.user,
@@ -265,13 +265,6 @@ class SendOfferView(APIView):
 
 
 class RespondOfferView(APIView):
-    """
-    POST /api/messaging/offers/<offer_id>/respond/
-    Buyer accepts or declines an offer.
-    Body: { action: "accept" | "decline" }
-
-    On accept: creates a pending Order and triggers payment-intent creation.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, offer_id):
@@ -282,17 +275,12 @@ class RespondOfferView(APIView):
 
         conversation = offer.conversation
 
-        # Must be the OTHER participant (i.e. the buyer)
         if offer.sender == request.user:
             return Response({"detail": "You cannot respond to your own offer."}, status=status.HTTP_403_FORBIDDEN)
         if conversation.participant_1 != request.user and conversation.participant_2 != request.user:
             return Response({"detail": "Not a participant."}, status=status.HTTP_403_FORBIDDEN)
-
         if offer.status != Offer.STATUS_PENDING:
-            return Response(
-                {"detail": f"Offer is already {offer.status}."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": f"Offer is already {offer.status}."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = RespondOfferSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -301,17 +289,10 @@ class RespondOfferView(APIView):
         if action == "decline":
             offer.status = Offer.STATUS_DECLINED
             offer.save(update_fields=["status"])
-            # Post a system-style text message in chat
-            Message.objects.create(
-                conversation=conversation,
-                sender=request.user,
-                content="Offer declined.",
-                message_type="text",
-            )
+            Message.objects.create(conversation=conversation, sender=request.user, content="Offer declined.", message_type="text")
             conversation.save()
             return Response(OfferSerializer(offer).data)
 
-        # ── Accept flow ──────────────────────────────────────────────────────
         try:
             from gigs.models import Order
             from datetime import timedelta
@@ -329,73 +310,40 @@ class RespondOfferView(APIView):
             offer.order = order
             offer.save(update_fields=["status", "order"])
         except Exception as e:
-            return Response(
-                {"detail": f"Could not create order: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            return Response({"detail": f"Could not create order: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Post confirmation message in chat
         Message.objects.create(
-            conversation=conversation,
-            sender=request.user,
-            content="Offer accepted! Proceeding to payment.",
-            message_type="text",
+            conversation=conversation, sender=request.user,
+            content="Offer accepted! Proceeding to payment.", message_type="text",
         )
         conversation.save()
 
-        # Generate a secure one-time payment token (expires in 15 minutes)
         pay_token = secrets.token_urlsafe(32)
         cache.set(f"pay_token:{pay_token}", {
             "order_id": order.id,
             "amount": str(offer.price),
             "user_id": request.user.id,
-        }, timeout=900)  # 15 minutes
+        }, timeout=900)
 
-        return Response(
-            {
-                "offer": OfferSerializer(offer).data,
-                "pay_token": pay_token,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({"offer": OfferSerializer(offer).data, "pay_token": pay_token}, status=status.HTTP_200_OK)
+
 
 class RedeemPayTokenView(APIView):
-    """
-    POST /api/messaging/pay-token/redeem/
-    Body: { token }
-    Returns order_id + amount if token is valid and belongs to the requesting user.
-    One-time use — token is deleted on redemption.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        from django.core.cache import cache
         token = request.data.get("token", "").strip()
         if not token:
             return Response({"detail": "Token required."}, status=status.HTTP_400_BAD_REQUEST)
-
         data = cache.get(f"pay_token:{token}")
         if not data:
             return Response({"detail": "Token expired or invalid."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Must be the same user who accepted the offer
         if data["user_id"] != request.user.id:
             return Response({"detail": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"order_id": data["order_id"], "amount": data["amount"]})
 
-        # Do NOT delete here — token is deleted by ConfirmPaymentView after
-        # payment is confirmed, so the user can still choose PayPal vs bank
-        # without the token being consumed before they complete payment.
 
-        return Response({
-            "order_id": data["order_id"],
-            "amount": data["amount"],
-        })
-    
 class UnreadCountView(APIView):
-    """
-    GET /api/messaging/unread-count/
-    Returns the total number of unread messages for the authenticated user.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):

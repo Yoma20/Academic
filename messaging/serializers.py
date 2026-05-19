@@ -54,6 +54,7 @@ class OfferSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender = serializers.SerializerMethodField()
     offer = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
 
     def get_sender(self, obj):
         return ParticipantSerializer(obj.sender, context=self.context).data
@@ -62,6 +63,14 @@ class MessageSerializer(serializers.ModelSerializer):
         if obj.offer:
             return OfferSerializer(obj.offer, context=self.context).data
         return None
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
 
     class Meta:
         model = Message
@@ -72,6 +81,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "content",
             "message_type",
             "offer",
+            "file_url",
+            "file_name",
             "is_read",
             "created_at",
         ]
@@ -108,7 +119,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         if msg:
             return {
                 "id": msg.id,
-                "content": msg.content[:100],
+                "content": msg.content[:100] if msg.content else f"📎 {msg.file_name}" if msg.file_name else "",
                 "message_type": msg.message_type,
                 "sender_id": msg.sender_id,
                 "created_at": msg.created_at,

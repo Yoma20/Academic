@@ -43,6 +43,7 @@ class Message(models.Model):
     MESSAGE_TYPE_CHOICES = [
         ("text", "Text"),
         ("offer", "Offer"),
+        ("file", "File"),
     ]
 
     conversation = models.ForeignKey(
@@ -55,7 +56,7 @@ class Message(models.Model):
         on_delete=models.CASCADE,
         related_name="sent_messages",
     )
-    content = models.TextField(max_length=5000)
+    content = models.TextField(max_length=5000, blank=True)
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPE_CHOICES, default="text")
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -68,6 +69,10 @@ class Message(models.Model):
         on_delete=models.SET_NULL,
         related_name="message",
     )
+
+    # File attachment (optional)
+    file = models.FileField(upload_to="messaging/attachments/", null=True, blank=True)
+    file_name = models.CharField(max_length=255, blank=True)  # original filename for display
 
     class Meta:
         ordering = ["created_at"]
