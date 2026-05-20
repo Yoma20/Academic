@@ -39,7 +39,7 @@ urlpatterns = [
     # Expert reviews
     path('experts/<int:expert_id>/reviews/', ExpertReviewListView.as_view(), name='expert-reviews'),
 
-    # Slug patterns LAST
+    
     path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
     path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
 ]
