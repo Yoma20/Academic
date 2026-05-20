@@ -155,7 +155,7 @@ class OrderSerializer(serializers.ModelSerializer):
     gig_title = serializers.CharField(
         source='package.gig.title', read_only=True
     )
-    # ... rest unchanged
+    
     gig_cover = serializers.CharField(
         source='package.gig.cover_image', read_only=True
     )
