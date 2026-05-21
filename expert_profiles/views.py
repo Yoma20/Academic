@@ -67,7 +67,7 @@ class ExpertProfileMe(APIView):
 
 class ExpertProfileAvatarUpload(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes     = [JSONParser]
+    parser_classes     = [MultiPartParser, FormParser, JSONParser]
 
     def _get_profile(self, user):
         try:
