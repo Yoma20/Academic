@@ -382,6 +382,8 @@ class GoogleAuthView(APIView):
 
     def post(self, request, *args, **kwargs):
         credential = request.data.get("credential")
+        user_type  = request.data.get("user_type", "student")
+
         if not credential:
             return Response({"error": "Google credential is required."},
                             status=status.HTTP_400_BAD_REQUEST)
@@ -414,12 +416,24 @@ class GoogleAuthView(APIView):
             defaults={
                 "username":          self._unique_username(email.split("@")[0]),
                 "is_email_verified": True,
+                "user_type":         user_type,
             },
         )
 
+        # If existing student is registering as expert, upgrade them
+        if not created and user_type == "expert" and user.user_type != "expert":
+            user.user_type = "expert"
+            user.save(update_fields=["user_type"])
+
+        # Ensure email is verified for existing users
         if not created and not getattr(user, "is_email_verified", True):
             user.is_email_verified = True
             user.save(update_fields=["is_email_verified"])
+
+        # Auto-create expert profile if needed
+        if user.user_type == "expert":
+            from expert_profiles.models import ExpertProfile
+            ExpertProfile.objects.get_or_create(user=user)
 
         auth_login(request, user)
         return Response(_user_payload(user), status=status.HTTP_200_OK)
@@ -433,7 +447,6 @@ class GoogleAuthView(APIView):
             username = f"{base}_{counter}"
             counter += 1
         return username
-
 
 # ── Me — GET / PATCH profile ──────────────────────────────────────────────────
 class MeView(APIView):
