@@ -122,6 +122,7 @@ class MyGigsView(generics.ListAPIView):
     """GET /api/gigs/mine/ — expert's own gigs"""
     serializer_class = GigSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         if not hasattr(self.request.user, 'expert_profile'):
@@ -266,6 +267,7 @@ class OrderListView(generics.ListAPIView):
     """
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
