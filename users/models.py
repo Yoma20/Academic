@@ -9,6 +9,26 @@ def generate_otp():
     return ''.join(random.choices(string.digits, k=6))
 
 
+
+class SiteSettings(models.Model):
+    expert_registration_open = models.BooleanField(
+        default=True,
+        help_text="Uncheck to stop new expert applications."
+    )
+
+    class Meta:
+        verbose_name = "Site Settings"
+        verbose_name_plural = "Site Settings"
+
+    def __str__(self):
+        return "Site Settings"
+
+    @classmethod
+    def get(cls):
+        """Always returns the single settings row, creating it if needed."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+    
 class CustomUser(AbstractUser):
     USER_TYPE_CHOICES = (
         ('student', 'Student'),

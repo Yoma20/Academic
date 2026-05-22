@@ -2,6 +2,7 @@
 import os
 import re
 import requests as http_requests
+from .models import SiteSettings
 
 from django.contrib.auth import get_user_model, login as auth_login, logout as auth_logout
 from django.conf import settings
@@ -263,6 +264,14 @@ class RegisterView(generics.CreateAPIView):
         )
 
     def create(self, request, *args, **kwargs):
+        # ── Expert registration gate ──────────────────────────────────────────
+        if request.data.get("user_type") == "expert":
+            if not SiteSettings.get().expert_registration_open:
+                return Response(
+                    {"error": "Expert applications are currently closed. Check back soon."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         # ── Turnstile check ───────────────────────────────────────────────────
         cf_token  = request.data.get("cf_token", "")
         remote_ip = request.META.get("HTTP_CF_CONNECTING_IP") or request.META.get("REMOTE_ADDR", "")
@@ -290,8 +299,6 @@ class RegisterView(generics.CreateAPIView):
              "message": "Account created. Check your email for your verification code."},
             status=status.HTTP_201_CREATED,
         )
-
-
 # ── Verify Email ───────────────────────────────────────────────────────────────
 class VerifyEmailView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -388,6 +395,14 @@ class GoogleAuthView(APIView):
             return Response({"error": "Google credential is required."},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        # ── Expert registration gate ──────────────────────────────────────────
+        if user_type == "expert":
+            if not SiteSettings.get().expert_registration_open:
+                return Response(
+                    {"error": "Expert applications are currently closed."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         google_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
         if not google_client_id:
             return Response({"error": "Google login is not configured on this server."},
@@ -447,7 +462,6 @@ class GoogleAuthView(APIView):
             username = f"{base}_{counter}"
             counter += 1
         return username
-
 # ── Me — GET / PATCH profile ──────────────────────────────────────────────────
 class MeView(APIView):
     permission_classes = [permissions.IsAuthenticated]

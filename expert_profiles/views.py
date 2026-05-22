@@ -3,7 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from users.models import SiteSettings
 from .models import ExpertProfile
 from .serializers import ExpertProfileSerializer
 
@@ -15,6 +15,30 @@ EDITABLE_FIELDS = {
 }
 
 
+class ExpertProfileEnsureView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        if request.user.user_type != 'expert':
+            return Response(
+                {"detail": "Only expert accounts can have an expert profile."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # ── Expert registration gate ──────────────────────────────────────────
+        if not SiteSettings.get().expert_registration_open:
+            return Response(
+                {"detail": "Expert applications are currently closed."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        profile, created = ExpertProfile.objects.get_or_create(user=request.user)
+        serializer = ExpertProfileSerializer(profile)
+        return Response(
+            {**serializer.data, "created": created},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        ) 
+    
 class ExpertProfileList(generics.ListAPIView):
     """GET /api/expert-profiles/ — list all experts, highest-rated first."""
     queryset           = ExpertProfile.objects.all().order_by('-rating')
