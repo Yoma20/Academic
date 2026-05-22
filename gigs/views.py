@@ -22,7 +22,42 @@ from .serializers import (
     ReviewSerializer,
 )
 
+class PopularCategoriesView(APIView):
+    """
+    GET /api/gigs/categories/popular/?limit=8
+    Returns top categories ranked by completed order count.
+    """
+    permission_classes = [permissions.IsAuthenticated]
 
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 8))
+
+        # Count completed orders per top-level category
+        from django.db.models import Count
+
+        results = (
+            AcademicCategory.objects
+            .filter(parent=None)  # top-level only
+            .annotate(
+                order_count=Count(
+                    'subcategories__gigs__packages__orders',
+                    filter=Q(
+                        subcategories__gigs__packages__orders__status='completed'
+                    ),
+                    distinct=True,
+                ) + Count(
+                    'gigs__packages__orders',
+                    filter=Q(
+                        gigs__packages__orders__status='completed'
+                    ),
+                    distinct=True,
+                )
+            )
+            .order_by('-order_count')[:limit]
+        )
+
+        data = AcademicCategorySerializer(results, many=True).data
+        return Response(data)
 # ─── Categories ───────────────────────────────────────────────────────────────
 
 class CategoryListView(generics.ListAPIView):

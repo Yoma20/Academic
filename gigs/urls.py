@@ -4,6 +4,7 @@ from .views import (
     GigListView, GigDetailView, GigCreateView,
     GigUpdateDeleteView, MyGigsView,
     CreatePaymentIntentView, ConfirmPaymentView,
+    PopularCategoriesView,
     SubmitRequirementsView,
     OrderListView, OrderDetailView,
     ExpertSubmitWorkView,
@@ -15,7 +16,7 @@ from .views import (
 urlpatterns = [
     # Categories
     path('categories/', CategoryListView.as_view(), name='category-list'),
-
+    path('categories/popular/', PopularCategoriesView.as_view(), name='popular-categories'),
     # Fixed paths FIRST — before any slug patterns
     path('', GigListView.as_view(), name='gig-list'),
     path('mine/', MyGigsView.as_view(), name='my-gigs'),
