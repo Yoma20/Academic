@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'gigs',
+    'feedback',
     'expert_profiles.apps.ExpertProfilesConfig',
     'messaging',
     'disputes',

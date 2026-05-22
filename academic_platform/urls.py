@@ -20,6 +20,7 @@ urlpatterns = [
      path('api/gigs/', include('gigs.urls')),          
     path('api/messaging/', include('messaging.urls')), 
     path('api/disputes/', include('disputes.urls')),
+    path('api/feedback/', include('feedback.urls')),
 ]
 
 if settings.DEBUG:
