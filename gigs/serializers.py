@@ -99,7 +99,7 @@ class GigWriteSerializer(serializers.ModelSerializer):
         fields = [
             'title', 'description', 'short_title', 'short_description',
             'category', 'cover_image', 'images', 'requirements_prompt',
-            'packages', 'extras',
+            'packages', 'extras', 'is_active',
         ]
 
     def create(self, validated_data):
@@ -172,8 +172,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'status', 'payment_status',
             'package_price', 'extras_price', 'total_price',
             'deadline', 'requirements', 'requirements_submitted',
-            'created_at', 'updated_at', 'expert_user_id',
-        ],
+            'created_at', 'updated_at',
+        ]
         read_only_fields = [
             'student', 'package_price', 'extras_price', 'total_price',
             'payment_status',
