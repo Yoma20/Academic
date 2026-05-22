@@ -29,6 +29,7 @@ class CategoryListView(generics.ListAPIView):
     """GET /api/gigs/categories/ — returns full category tree (parents + children)"""
     serializer_class = AcademicCategorySerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
     queryset = AcademicCategory.objects.filter(parent=None).prefetch_related('subcategories')
 
 
@@ -268,6 +269,7 @@ class OrderListView(generics.ListAPIView):
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
+    
 
     def get_queryset(self):
         user = self.request.user
