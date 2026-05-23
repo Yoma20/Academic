@@ -22,7 +22,7 @@ urlpatterns = [
     path('mine/', MyGigsView.as_view(), name='my-gigs'),
     path('create/', GigCreateView.as_view(), name='gig-create'),
 
-    # Earnings
+    
     path('earnings/',    AdminEarningsView.as_view(),  name='admin-earnings'),
     path('my-earnings/', SellerEarningsView.as_view(), name='seller-earnings'),
 
