@@ -156,9 +156,20 @@ class OrderSerializer(serializers.ModelSerializer):
         source='package.gig.title', read_only=True
     )
     
-    gig_cover = serializers.CharField(
-        source='package.gig.cover_image', read_only=True
-    )
+    gig_cover = serializers.SerializerMethodField()
+
+    def get_gig_cover(self, obj):
+        request = self.context.get('request')
+        try:
+            cover = obj.package.gig.cover_image
+            if not cover:
+                return None
+            if request:
+                return request.build_absolute_uri(cover.url)
+            return cover.url
+        except Exception:
+            return None
+    
     expert_username = serializers.CharField(
         source='package.gig.expert.user.username', read_only=True
     )
