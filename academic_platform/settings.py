@@ -3,33 +3,49 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-t^7^5n7*m(v2h5*@d(2!n*z9h-h&17z*#d+6i_0)e5#w^!_7')
+# ── Security ──────────────────────────────────────────────────────────────────
+# Will crash on startup if not set in environment — intentional, no insecure fallback
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-CF_TURNSTILE_SECRET_KEY = os.environ.get('CF_TURNSTILE_SECRET_KEY', '')
-CF_TURNSTILE_SITE_KEY = os.environ.get('CF_TURNSTILE_SITE_KEY', '')
+ALLOWED_HOSTS = [
+    'web-production-d2ca9.up.railway.app',
+    'www.topmark.pro',
+    'topmark.pro',
+]
+if DEBUG:
+    ALLOWED_HOSTS += ['127.0.0.1', 'localhost']
 
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'False'
-
+# ── HTTPS / Security headers (production only) ────────────────────────────────
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
-ALLOWED_HOSTS = [
-    '127.0.0.1', 'localhost',
-    'web-production-d2ca9.up.railway.app',
-    'www.topmark.pro',
-    'topmark.pro',
-    os.environ.get('RAILWAY_STATIC_URL', '').replace('https://', ''),
-]
+# ── Third-party keys ──────────────────────────────────────────────────────────
+CF_TURNSTILE_SECRET_KEY = os.environ.get('CF_TURNSTILE_SECRET_KEY', '')
+CF_TURNSTILE_SITE_KEY   = os.environ.get('CF_TURNSTILE_SITE_KEY', '')
+RESEND_API_KEY          = os.environ.get('RESEND_API_KEY', '')
+DEFAULT_FROM_EMAIL      = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@topmark.pro')
+GOOGLE_CLIENT_ID        = os.environ.get('GOOGLE_CLIENT_ID', '')
+FRONTEND_URL            = os.environ.get('FRONTEND_URL', 'https://topmark.pro')
 
+# ── Email ─────────────────────────────────────────────────────────────────────
+EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST          = 'smtp.resend.com'
+EMAIL_PORT          = 465
+EMAIL_USE_SSL       = True
+EMAIL_HOST_USER     = 'resend'
+EMAIL_HOST_PASSWORD = RESEND_API_KEY
+
+# ── Installed apps ────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
-    'daphne',                                         # ← must be first
+    'daphne',                          # must be first
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -37,7 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'channels',                                       # ← new
+    'channels',
     'corsheaders',
     'users',
     'gigs',
@@ -47,22 +63,7 @@ INSTALLED_APPS = [
     'disputes',
 ]
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@topmark.pro')
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
-
-EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST          = 'smtp.resend.com'
-EMAIL_PORT          = 465
-EMAIL_USE_SSL       = True
-EMAIL_HOST_USER     = 'resend'
-EMAIL_HOST_PASSWORD = RESEND_API_KEY
-
-
-FRONTEND_URL          = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-
+# ── Middleware ────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -80,7 +81,6 @@ ROOT_URLCONF = 'academic_platform.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
         'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -94,32 +94,48 @@ TEMPLATES = [
     },
 ]
 
-# ── Cache — Redis backend ─────────────────────────────────────────────────────
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("REDIS_URL", "redis://localhost:6379"),
-    }
-}
-# ── ASGI (replaces WSGI_APPLICATION for WebSocket support) ───────────────────
+# ── ASGI ──────────────────────────────────────────────────────────────────────
 ASGI_APPLICATION = 'academic_platform.asgi.application'
 
+# ── Database ──────────────────────────────────────────────────────────────────
 import dj_database_url
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3')
 DATABASES = {
-    'default': dj_database_url.config(default=DATABASE_URL)
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3')
+    )
 }
 
-# ── Channel layers — Redis backend ────────────────────────────────────────────
-# Railway sets REDIS_URL automatically when you add a Redis service.
+# ── Cache — Redis ─────────────────────────────────────────────────────────────
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://localhost:6379'),
+    }
+}
+
+# ── Sessions ──────────────────────────────────────────────────────────────────
+SESSION_ENGINE       = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS  = 'default'
+
+# ── Channel layers — Redis ────────────────────────────────────────────────────
 CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.environ.get("REDIS_URL", "redis://localhost:6379")],
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [os.environ.get('REDIS_URL', 'redis://localhost:6379')],
         },
     }
 }
+
+# ── Static / Media ────────────────────────────────────────────────────────────
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_URL          = 'static/'
+STATIC_ROOT         = os.path.join(BASE_DIR, 'staticfiles')
+MEDIA_URL           = '/media/'
+MEDIA_ROOT          = os.path.join(BASE_DIR, 'media')
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+AUTH_USER_MODEL = 'users.CustomUser'
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -129,19 +145,37 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE     = 'UTC'
-USE_I18N      = True
-USE_TZ        = True
+# ── Cookie security ───────────────────────────────────────────────────────────
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_AGE      = 60 * 60 * 24 * 30   # 30 days
+SESSION_COOKIE_SECURE   = True
+CSRF_COOKIE_HTTPONLY    = False                # must stay False — frontend reads it
+CSRF_COOKIE_SAMESITE    = 'None'
+CSRF_COOKIE_SECURE      = True
 
-STATIC_URL  = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-MEDIA_URL   = '/media/'
-MEDIA_ROOT  = os.path.join(BASE_DIR, 'media')
+# ── CORS ──────────────────────────────────────────────────────────────────────
+CORS_ALLOWED_ORIGINS = [
+    'https://www.topmark.pro',
+    'https://topmark.pro',
+]
+if DEBUG:
+    CORS_ALLOWED_ORIGINS += [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+    ]
+CORS_ALLOW_CREDENTIALS = True
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# ── CSRF trusted origins ──────────────────────────────────────────────────────
+CSRF_TRUSTED_ORIGINS = [
+    'https://web-production-d2ca9.up.railway.app',
+    'https://www.topmark.pro',
+    'https://topmark.pro',
+]
 
-# ── DRF — session auth only (cookie-based) ───────────────────────────────────
+# ── DRF ───────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
@@ -153,36 +187,9 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,
 }
 
-AUTH_USER_MODEL = 'users.CustomUser'
-
-# ── Cookie security ───────────────────────────────────────────────────────────
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_AGE      = 60 * 60 * 24 * 30
-SESSION_COOKIE_SECURE   = True
-CSRF_COOKIE_HTTPONLY    = False
-CSRF_COOKIE_SAMESITE    = 'None'
-CSRF_COOKIE_SECURE      = True
-
-# ── CORS ──────────────────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = [
-    "https://topmark-black.vercel.app",
-    "https://topmark-git-main-yoma20s-projects.vercel.app",
-    "https://yoma20.github.io",
-    "https://www.topmark.pro",
-    "https://topmark.pro",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-]
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.vercel\.app$",
-]
-CORS_ALLOW_CREDENTIALS = True
-
-CSRF_TRUSTED_ORIGINS = [
-    'https://web-production-d2ca9.up.railway.app',
-    'https://www.topmark.pro',
-    'https://topmark.pro',
-]
+# ── Internationalisation ──────────────────────────────────────────────────────
+LANGUAGE_CODE      = 'en-us'
+TIME_ZONE          = 'UTC'
+USE_I18N           = True
+USE_TZ             = True
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
