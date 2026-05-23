@@ -69,7 +69,40 @@ class CategoryListView(generics.ListAPIView):
 
 
 # ─── Gig views ────────────────────────────────────────────────────────────────
+class CancelOrderView(APIView):
+    """
+    POST /api/gigs/orders/<order_id>/cancel/
+    Student cancels an order — only allowed when payment_status == 'unpaid'
+    (i.e. the order was created but never paid for).
+    Sets status = 'archived'.
+    """
+    permission_classes = [permissions.IsAuthenticated]
 
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id, student=request.user)
+        except Order.DoesNotExist:
+            return Response(
+                {'detail': 'Order not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if order.payment_status != 'unpaid':
+            return Response(
+                {'detail': 'Only unpaid orders can be cancelled. Contact support if you need a refund.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if order.status == 'archived':
+            return Response(
+                {'detail': 'This order is already cancelled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.status = 'archived'
+        order.save(update_fields=['status'])
+        return Response({'detail': 'Order cancelled.'})
+    
 class GigListView(generics.ListAPIView):
     """
     GET /api/gigs/
