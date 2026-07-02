@@ -6,6 +6,8 @@ from rest_framework.views import APIView
 from users.models import SiteSettings
 from .models import ExpertProfile
 from .serializers import ExpertProfileSerializer
+from rest_framework.permissions import BasePermission, SAFE_METHODS
+from .permissions import IsOwnerOrReadOnly
 
 # Fields the expert is allowed to update themselves
 EDITABLE_FIELDS = {
@@ -45,17 +47,18 @@ class ExpertProfileList(generics.ListAPIView):
     serializer_class   = ExpertProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-
+class IsOwnerOrReadOnly(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.user == request.user
+    
 class ExpertProfileDetail(generics.RetrieveUpdateAPIView):
     """GET/PATCH /api/expert-profiles/<pk>/"""
-    serializer_class   = ExpertProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_object(self):
-        try:
-            return self.request.user.expert_profile
-        except ExpertProfile.DoesNotExist:
-            raise PermissionDenied("Only experts have a profile.")
+    queryset            = ExpertProfile.objects.all()
+    serializer_class    = ExpertProfileSerializer
+    permission_classes  = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
+    lookup_field         = 'pk'
 
 
 class ExpertProfileMe(APIView):
