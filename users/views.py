@@ -451,7 +451,9 @@ class GoogleAuthView(APIView):
             ExpertProfile.objects.get_or_create(user=user)
 
         auth_login(request, user)
-        return Response(_user_payload(user), status=status.HTTP_200_OK)
+        payload = _user_payload(user)
+        payload["created"] = created
+        return Response(payload, status=status.HTTP_200_OK)
 
     @staticmethod
     def _unique_username(base: str) -> str:

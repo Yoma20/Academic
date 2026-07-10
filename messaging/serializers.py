@@ -1,16 +1,18 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Conversation, Message, Offer
+from .models import Conversation, Message, Offer, Reaction
+from .presence import is_online as _is_online
 
 User = get_user_model()
 
 
 class ParticipantSerializer(serializers.ModelSerializer):
     profile_picture = serializers.SerializerMethodField()
+    is_online = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "user_type", "profile_picture"]
+        fields = ["id", "username", "first_name", "last_name", "user_type", "profile_picture", "is_online"]
 
     def get_profile_picture(self, user):
         if user.user_type == "expert":
@@ -23,6 +25,10 @@ class ParticipantSerializer(serializers.ModelSerializer):
         if user.profile_picture:
             return user.profile_picture
         return None
+
+    def get_is_online(self, user):
+        return _is_online(user.id)
+
 
 class OfferSerializer(serializers.ModelSerializer):
     sender = serializers.SerializerMethodField()
@@ -55,6 +61,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender = serializers.SerializerMethodField()
     offer = serializers.SerializerMethodField()
     file_url = serializers.SerializerMethodField()
+    reactions = serializers.SerializerMethodField()
 
     def get_sender(self, obj):
         return ParticipantSerializer(obj.sender, context=self.context).data
@@ -72,6 +79,19 @@ class MessageSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.file.url)
         return obj.file.url
 
+    def get_reactions(self, obj):
+        """Group reactions by emoji: [{emoji, count, reacted_by_me}, ...]"""
+        request = self.context.get("request")
+        me = getattr(request, "user", None) if request else None
+
+        summary = {}
+        for r in obj.reactions.all():
+            entry = summary.setdefault(r.emoji, {"emoji": r.emoji, "count": 0, "reacted_by_me": False})
+            entry["count"] += 1
+            if me is not None and r.user_id == me.id:
+                entry["reacted_by_me"] = True
+        return list(summary.values())
+
     class Meta:
         model = Message
         fields = [
@@ -84,9 +104,13 @@ class MessageSerializer(serializers.ModelSerializer):
             "file_url",
             "file_name",
             "is_read",
+            "is_edited",
+            "edited_at",
+            "is_deleted",
+            "reactions",
             "created_at",
         ]
-        read_only_fields = ["id", "is_read", "created_at", "message_type"]
+        read_only_fields = ["id", "is_read", "created_at", "message_type", "is_edited", "edited_at", "is_deleted"]
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -117,9 +141,17 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
         msg = obj.messages.last()
         if msg:
+            if msg.is_deleted:
+                preview = "Message deleted"
+            elif msg.content:
+                preview = msg.content[:100]
+            elif msg.file_name:
+                preview = f"📎 {msg.file_name}"
+            else:
+                preview = ""
             return {
                 "id": msg.id,
-                "content": msg.content[:100] if msg.content else f"📎 {msg.file_name}" if msg.file_name else "",
+                "content": preview,
                 "message_type": msg.message_type,
                 "sender_id": msg.sender_id,
                 "created_at": msg.created_at,
@@ -173,3 +205,21 @@ class SendOfferSerializer(serializers.Serializer):
 class RespondOfferSerializer(serializers.Serializer):
     """Validates accept / decline responses from the buyer."""
     action = serializers.ChoiceField(choices=["accept", "decline"])
+
+
+class EditMessageSerializer(serializers.Serializer):
+    content = serializers.CharField(max_length=5000)
+
+    def validate_content(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Content cannot be empty.")
+        return value.strip()
+
+
+class ToggleReactionSerializer(serializers.Serializer):
+    emoji = serializers.CharField(max_length=8)
+
+    def validate_emoji(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Emoji required.")
+        return value.strip()

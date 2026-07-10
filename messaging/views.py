@@ -7,7 +7,8 @@ from rest_framework.views import APIView
 import secrets
 from django.core.cache import cache
 
-from .models import Conversation, Message, Offer
+from .models import Conversation, Message, Offer, Reaction
+from .presence import set_online, is_online, get_last_seen
 from .serializers import (
     ConversationSerializer,
     MessageSerializer,
@@ -15,6 +16,8 @@ from .serializers import (
     StartConversationSerializer,
     SendOfferSerializer,
     RespondOfferSerializer,
+    EditMessageSerializer,
+    ToggleReactionSerializer,
 )
 
 User = get_user_model()
@@ -119,7 +122,7 @@ class MessageListView(generics.ListAPIView):
         Message.objects.filter(conversation=conversation, is_read=False).exclude(sender=user).update(is_read=True)
         return Message.objects.filter(conversation=conversation).select_related(
             "sender", "sender__expert_profile", "offer", "offer__sender"
-        )
+        ).prefetch_related("reactions")
 
 
 class SendMessageView(APIView):
@@ -191,6 +194,88 @@ class SendMessageView(APIView):
         if len(serialized) == 1:
             return Response(serialized[0], status=status.HTTP_201_CREATED)
         return Response(serialized, status=status.HTTP_201_CREATED)
+
+
+class EditMessageView(APIView):
+    """PATCH /api/messaging/messages/<message_id>/edit/  Body: { content }"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, message_id):
+        try:
+            message = Message.objects.get(pk=message_id)
+        except Message.DoesNotExist:
+            return Response({"detail": "Message not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if message.sender != request.user:
+            return Response({"detail": "You can only edit your own messages."}, status=status.HTTP_403_FORBIDDEN)
+        if message.is_deleted:
+            return Response({"detail": "Cannot edit a deleted message."}, status=status.HTTP_400_BAD_REQUEST)
+        if message.message_type != "text":
+            return Response({"detail": "Only text messages can be edited."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = EditMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        message.content = serializer.validated_data["content"]
+        message.is_edited = True
+        message.edited_at = timezone.now()
+        message.save(update_fields=["content", "is_edited", "edited_at"])
+
+        return Response(MessageSerializer(message, context={"request": request}).data)
+
+
+class DeleteMessageView(APIView):
+    """DELETE /api/messaging/messages/<message_id>/delete/  — soft delete."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, message_id):
+        try:
+            message = Message.objects.get(pk=message_id)
+        except Message.DoesNotExist:
+            return Response({"detail": "Message not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if message.sender != request.user:
+            return Response({"detail": "You can only delete your own messages."}, status=status.HTTP_403_FORBIDDEN)
+        if message.is_deleted:
+            return Response({"detail": "Already deleted."}, status=status.HTTP_400_BAD_REQUEST)
+
+        message.is_deleted = True
+        message.deleted_at = timezone.now()
+        message.content = ""
+        if message.file:
+            message.file.delete(save=False)
+        message.file_name = ""
+        message.save(update_fields=["is_deleted", "deleted_at", "content", "file", "file_name"])
+
+        return Response(MessageSerializer(message, context={"request": request}).data)
+
+
+class ToggleReactionView(APIView):
+    """POST /api/messaging/messages/<message_id>/react/  Body: { emoji }
+    Toggles the current user's reaction with that emoji on/off."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, message_id):
+        serializer = ToggleReactionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        emoji = serializer.validated_data["emoji"]
+
+        try:
+            message = Message.objects.get(pk=message_id)
+        except Message.DoesNotExist:
+            return Response({"detail": "Message not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        conv = message.conversation
+        if conv.participant_1 != request.user and conv.participant_2 != request.user:
+            return Response({"detail": "Not a participant."}, status=status.HTTP_403_FORBIDDEN)
+
+        existing = Reaction.objects.filter(message=message, user=request.user, emoji=emoji).first()
+        if existing:
+            existing.delete()
+        else:
+            Reaction.objects.create(message=message, user=request.user, emoji=emoji)
+
+        return Response(MessageSerializer(message, context={"request": request}).data)
 
 
 class SendOfferView(APIView):
@@ -355,3 +440,25 @@ class UnreadCountView(APIView):
             is_read=False,
         ).exclude(sender=user).count()
         return Response({"unread_count": count})
+
+
+class HeartbeatView(APIView):
+    """POST /api/messaging/heartbeat/ — call every ~30s while the app is open.
+    This is what powers real online/offline status without needing the websocket."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        set_online(request.user.id)
+        return Response({"status": "ok"})
+
+
+class PresenceView(APIView):
+    """GET /api/messaging/presence/<user_id>/ — online status + last seen for one user."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_id):
+        return Response({
+            "user_id": user_id,
+            "is_online": is_online(user_id),
+            "last_seen": get_last_seen(user_id),
+        })

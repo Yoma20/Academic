@@ -5,9 +5,14 @@ from .views import (
     StartConversationView,
     MessageListView,
     SendMessageView,
+    EditMessageView,
+    DeleteMessageView,
+    ToggleReactionView,
     SendOfferView,
     RespondOfferView,
     UnreadCountView,
+    HeartbeatView,
+    PresenceView,
 )
 
 urlpatterns = [
@@ -18,6 +23,9 @@ urlpatterns = [
     # Messages
     path("conversations/<int:conv_id>/messages/", MessageListView.as_view(), name="message-list"),
     path("conversations/<int:conv_id>/send/", SendMessageView.as_view(), name="send-message"),
+    path("messages/<int:message_id>/edit/", EditMessageView.as_view(), name="edit-message"),
+    path("messages/<int:message_id>/delete/", DeleteMessageView.as_view(), name="delete-message"),
+    path("messages/<int:message_id>/react/", ToggleReactionView.as_view(), name="toggle-reaction"),
 
     # Offers — sent inside a conversation by the expert
     path("conversations/<int:conv_id>/offer/", SendOfferView.as_view(), name="send-offer"),
@@ -28,4 +36,8 @@ urlpatterns = [
 
     # Unread badge count
     path("unread-count/", UnreadCountView.as_view(), name="unread-count"),
+
+    # Presence (REST-based — works without the websocket)
+    path("heartbeat/", HeartbeatView.as_view(), name="heartbeat"),
+    path("presence/<int:user_id>/", PresenceView.as_view(), name="presence"),
 ]

@@ -61,6 +61,12 @@ class Message(models.Model):
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ── Edit / soft-delete ──────────────────────────────────────────────────
+    is_edited = models.BooleanField(default=False)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
     # Link to offer if message_type == "offer"
     offer = models.OneToOneField(
         "Offer",
@@ -79,6 +85,28 @@ class Message(models.Model):
 
     def __str__(self):
         return f"Message {self.id} ({self.message_type}) from {self.sender} in conv {self.conversation_id}"
+
+
+class Reaction(models.Model):
+    """A single user's emoji reaction to a message. One row per (message, user, emoji)."""
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="message_reactions",
+    )
+    emoji = models.CharField(max_length=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("message", "user", "emoji")
+
+    def __str__(self):
+        return f"{self.user} reacted {self.emoji} to message {self.message_id}"
 
 
 class Offer(models.Model):
