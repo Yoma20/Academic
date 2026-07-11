@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     CategoryListView,
     GigListView, GigDetailView, GigCreateView,
-    GigUpdateDeleteView, MyGigsView,
+    GigUpdateDeleteView, MyGigsView, PinGigView,
     CreatePaymentIntentView, ConfirmPaymentView,
     PopularCategoriesView,
     SubmitRequirementsView,
@@ -45,4 +45,5 @@ urlpatterns = [
     # Slug-based — must come last
     path('<slug:slug>/', GigDetailView.as_view(), name='gig-detail'),
     path('<slug:slug>/manage/', GigUpdateDeleteView.as_view(), name='gig-manage'),
+    path('<slug:slug>/pin/', PinGigView.as_view(), name='gig-pin'),
 ]

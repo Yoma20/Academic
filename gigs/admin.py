@@ -15,7 +15,17 @@ class AcademicCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Gig)
 class GigAdmin(admin.ModelAdmin):
-    list_display = ['title', 'expert', 'category', 'is_active', 'created_at']
+    list_display = ['title', 'expert', 'category', 'is_active', 'is_pinned', 'created_at']
+    list_filter = ['is_pinned', 'is_active']
+    actions = ['pin_gigs', 'unpin_gigs']
+
+    def pin_gigs(self, request, queryset):
+        queryset.update(is_pinned=True, pinned_at=timezone.now())
+    pin_gigs.short_description = "Pin selected gigs"
+
+    def unpin_gigs(self, request, queryset):
+        queryset.update(is_pinned=False, pinned_at=None)
+    unpin_gigs.short_description = "Unpin selected gigs"
 
 @admin.register(GigPackage)
 class GigPackageAdmin(admin.ModelAdmin):

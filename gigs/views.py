@@ -130,9 +130,9 @@ class GigListView(generics.ListAPIView):
 
         sort = params.get('sort', 'sales')
         if sort == 'sales':
-            qs = qs.order_by('-sales')
+            qs = qs.order_by('-is_pinned', '-sales')
         else:
-            qs = qs.order_by('-created_at')
+            qs = qs.order_by('-is_pinned', '-created_at')
 
         return qs.distinct()
 
@@ -185,6 +185,26 @@ class GigUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         if not hasattr(self.request.user, 'expert_profile'):
             raise PermissionDenied("Only experts can manage gigs.")
         return super().get_object()
+
+
+class PinGigView(APIView):
+    """
+    POST /api/gigs/<slug>/pin/
+    Admin only. Toggles is_pinned on a gig — pinned gigs are ordered
+    to the front of gig listings (e.g. the dashboard's Recommended Experts).
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, slug):
+        try:
+            gig = Gig.objects.get(slug=slug)
+        except Gig.DoesNotExist:
+            return Response({'detail': 'Gig not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        gig.is_pinned = not gig.is_pinned
+        gig.pinned_at = timezone.now() if gig.is_pinned else None
+        gig.save(update_fields=['is_pinned', 'pinned_at'])
+        return Response(GigSerializer(gig).data)
 
 
 class MyGigsView(generics.ListAPIView):

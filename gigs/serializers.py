@@ -73,6 +73,7 @@ class GigSerializer(serializers.ModelSerializer):
             'title', 'description', 'short_title', 'short_description',
             'category', 'category_name', 'cover_image', 'images',
             'requirements_prompt', 'sales', 'is_active',
+            'is_pinned', 'pinned_at',                                # ← new
             'expert_id', 'expert_user_id', 'expert_username', 'expert_rating',
             'expert_avatar',                                        # ← new
             'review_count',
@@ -83,6 +84,7 @@ class GigSerializer(serializers.ModelSerializer):
             'slug',
             'expert', 'sales', 'expert_id', 'expert_user_id',
             'expert_username', 'expert_rating', 'expert_avatar',
+            'is_pinned', 'pinned_at',
         ]
 
     def get_review_count(self, obj):

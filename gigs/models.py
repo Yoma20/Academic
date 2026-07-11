@@ -51,6 +51,14 @@ class Gig(models.Model):
 
     sales = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    is_pinned = models.BooleanField(
+        default=False,
+        help_text="Admin-pinned gigs are surfaced at the top of listings."
+    )
+    pinned_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this gig was pinned. Cleared when unpinned."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
